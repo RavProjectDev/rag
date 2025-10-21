@@ -1,0 +1,22 @@
+export const questions = [
+  "What does the Rav say about the purpose of marriage in a Jewish life?",
+  "Can joy and existential loneliness coexist in the Rav's thought?",
+  "Why does the Rav emphasize struggle as part of spiritual growth?",
+  "How should one balance personal ambition with religious humility?",
+  "What role does love play in building a covenantal relationship?",
+  "Is there meaning in suffering, or must we simply endure it?",
+  "How can one cultivate genuine prayer in a distracted world?",
+  "Why is Halacha central to the Rav's vision of Jewish life?",
+  "Does the Rav believe that faith requires certainty?",
+  "What does it mean to be truly free according to the Rav?",
+  "How does the Rav view the act of making moral choices?",
+  "In times of doubt, where does the Rav suggest we turn?",
+  "What is the Rav's view on finding meaning in everyday mitzvot?",
+  "How should we understand silence — from God or from others?",
+  "Does individuality have a place in a life of submission to Torah?",
+  "Why is community so essential in the Rav’s worldview?",
+  "What does it mean to be created in the image of God?",
+  "How can one maintain faith when life feels chaotic or unjust?",
+  "What does the Rav teach about building a home filled with kedusha?",
+  "What kind of person does the Rav believe we are meant to become?"
+];

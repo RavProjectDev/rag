@@ -1,0 +1,7 @@
+# Development & Linting Tools
+black==25.1.0
+isort==6.0.1
+pytest==8.4.1
+pre_commit==4.2.0
+ruff==0.12.2
+mypy_extensions==1.1.0 
