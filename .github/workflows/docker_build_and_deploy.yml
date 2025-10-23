@@ -35,14 +35,14 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+          
       - name: Build Docker image
         run: |
           docker build \
-            -f rag/Dockerfile \
+            -f Dockerfile \
             -t rag \
-            rag \
-            --platform linux/amd64  
+            . \
+            --platform linux/amd64
 
       - name: Run tests inside Docker container
         run: |
