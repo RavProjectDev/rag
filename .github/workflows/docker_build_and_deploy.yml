@@ -14,7 +14,6 @@ jobs:
     
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      SBERT_API_URL: ${{ secrets.SBERT_API_URL }}
       MONGODB_URI: ${{ secrets.MONGODB_URI }}
       MONGODB_DB_NAME: "rav_dev"
       MONGODB_VECTOR_COLLECTION: ${{ secrets.MONGODB_VECTOR_COLLECTION }}
@@ -49,7 +48,6 @@ jobs:
         run: |
           docker run --rm \
             -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-            -e SBERT_API_URL="${{ secrets.SBERT_API_URL }}" \
             -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
             -e MONGODB_DB_NAME="rav_dev" \
             -e MONGODB_VECTOR_COLLECTION="${{ secrets.MONGODB_VECTOR_COLLECTION }}" \
