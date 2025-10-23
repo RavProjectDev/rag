@@ -41,8 +41,8 @@ jobs:
           docker build \
             -f rag/Dockerfile \
             -t rag \
-            . \
-            --platform linux/amd64
+            rag \
+            --platform linux/amd64  
 
       - name: Run tests inside Docker container
         run: |
