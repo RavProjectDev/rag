@@ -15,7 +15,6 @@ class Environment(Enum):
 
 class Settings(BaseSettings):
     openai_api_key: str
-    sbert_api_url: str
     mongodb_uri: str
     mongodb_db_name: str
     mongodb_vector_collection: str
@@ -31,6 +30,7 @@ class Settings(BaseSettings):
     environment: Environment = Environment.PRD
     exceptions_collection: str = "exceptions"
     model_config = {"env_file": ".env"}
+    google_application_credentials: str
 
 
 @lru_cache()

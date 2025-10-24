@@ -260,11 +260,39 @@ def generate_prompt(
 
     for doc in data:
         quote = doc.text.strip()
-        metadata_str = ", ".join(
-            f"{k}: {v}" for k, v in doc.metadata.model_dump().items()
-        )
 
-        entry = f'"{quote}"\n(Source: {metadata_str})'
+        # Build timestamp string from metadata if available
+        time_start = doc.metadata.time_start if hasattr(doc.metadata, "time_start") else None
+        time_end = doc.metadata.time_end if hasattr(doc.metadata, "time_end") else None
+        if time_start and time_end:
+            timestamp = f"{time_start}-{time_end}"
+        elif time_start:
+            timestamp = f"{time_start}"
+        elif time_end:
+            timestamp = f"{time_end}"
+        else:
+            timestamp = None
+
+        # Choose context entry format based on prompt_id
+        if prompt_id == "structured_json":
+            # JSON-line style entry with explicit fields for easier association
+            # Ensure double quotes and nulls where appropriate
+            safe_text = quote.replace("\\", "\\\\").replace("\"", "\\\"")
+            safe_slug = doc.sanity_data.slug.replace("\\", "\\\\").replace("\"", "\\\"")
+            ts_value = f'"{timestamp}"' if timestamp else "null"
+            entry = (
+                "{"
+                f"\"slug\": \"{safe_slug}\", \"timestamp\": {ts_value}, \"text\": \"{safe_text}\""
+                "}"
+            )
+        else:
+            # Original human-readable entry with metadata dump
+            metadata_str = ", ".join(
+                f"{k}: {v}" for k, v in doc.metadata.model_dump().items()
+            )
+            # Add slug explicitly to source line
+            entry = f'"{quote}"\n(Source: slug: {doc.sanity_data.slug}, {metadata_str})'
+
         tokens = estimate_tokens(entry)
 
         if token_count + tokens > max_tokens:

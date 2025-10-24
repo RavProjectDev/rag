@@ -17,10 +17,15 @@ class TranscriptData(BaseModel):
         }
 
 
+class SourceItem(BaseModel):
+    slug: str
+    timestamp: Optional[str] = None
+    text: str
+
+
 class ChatResponse(BaseModel):
-    message: str
-    transcript_data: list[TranscriptData]
-    prompt_id: str = None
+    main_text: str
+    sources: list[SourceItem]
 
 
 class FormFullResponse(BaseModel):
