@@ -2,7 +2,7 @@
 from fastapi import Request, Depends
 from rag.app.core import config
 
-
+#SETTINGS
 from rag.app.schemas.data import LLMModel, EmbeddingConfiguration
 from rag.app.db.connections import EmbeddingConnection, MetricsConnection
 
