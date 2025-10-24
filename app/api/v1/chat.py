@@ -3,7 +3,7 @@ import json
 import uuid
 
 from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from starlette import status
 
 from rag.app.core.config import get_settings
@@ -95,6 +95,11 @@ async def handler(
                 connection=embedding_conn,
                 metrics_connection=metrics_conn,
                 name_spaces=chat_request.name_spaces,  # Pass metrics_conn for logging
+                prompt_id=(
+                    "structured_json"
+                    if chat_request.type_of_request == TypeOfRequest.FULL
+                    else None
+                ),
             ),
             timeout=settings.external_api_timeout,
         )
@@ -121,11 +126,42 @@ async def handler(
                     prompt=prompt.value,
                     model=llm_configuration,
                 )
-                return ChatResponse(
-                    message=llm_response,
-                    transcript_data=transcript_data,
-                    prompt_id=prompt.id,
-                )
+                # If we used the structured JSON prompt, validate JSON and return it
+                if prompt.id == "structured_json":
+                    try:
+                        parsed = json.loads(llm_response)
+                        main_text = parsed.get("main_text", "")
+                        sources_raw = parsed.get("sources", [])
+                        # Normalize sources into expected shape
+                        sources = []
+                        for s in sources_raw:
+                            if not isinstance(s, dict):
+                                continue
+                            sources.append(
+                                {
+                                    "slug": s.get("slug", ""),
+                                    "timestamp": s.get("timestamp"),
+                                    "text": s.get("text", ""),
+                                }
+                            )
+                        return ChatResponse(
+                            main_text=main_text,
+                            sources=sources,
+                        )
+                    except Exception:
+                        raise HTTPException(
+                            status_code=500,
+                            detail={
+                                "code": "invalid_llm_json",
+                                "message": "LLM returned invalid JSON for FULL response",
+                            },
+                        )
+                else:
+                    # Non-structured prompts fallback: map into ChatResponse
+                    return ChatResponse(
+                        main_text=llm_response,
+                        sources=[],
+                    )
 
         return await full_response()
     except asyncio.TimeoutError:
@@ -135,7 +171,7 @@ async def handler(
         )
 
     except NoDocumentFoundException as e:
-        return ChatResponse(message=e.message_to_ui, transcript_data=[])
+        return ChatResponse(main_text=e.message_to_ui, sources=[])
     except BaseAppException as e:
         raise HTTPException(
             status_code=e.status_code, detail={"code": e.code, "error": e.message}
@@ -152,6 +188,7 @@ async def generate(
     connection: EmbeddingConnection,
     metrics_connection: MetricsConnection,
     name_spaces: list[str] = None,
+    prompt_id: str | None = None,
 ) -> (Prompt, list[TranscriptData]):
     """
     Generate an LLM prompt and retrieve relevant context.
@@ -218,7 +255,7 @@ async def generate(
             raise DataBaseException(f"Database retrieval failed: {str(e)}")
 
     try:
-        prompt = generate_prompt(cleaned_question, data)
+        prompt = generate_prompt(cleaned_question, data, prompt_id=prompt_id)
     except LLMBaseException as e:
         raise e
     except Exception as e:
