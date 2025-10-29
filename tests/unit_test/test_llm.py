@@ -335,3 +335,87 @@ def test_generate_prompt_token_limit():
         f'{"B" * 1000}\n(Source: chunk_size: 100, time_start: 00:00, time_end: 01:00, name_space: lecture)'
         not in prompt.value
     )
+
+
+def test_generate_prompt_structured_json_format():
+    """Test that structured_json prompt_id generates proper JSON-formatted context with slug and timestamp."""
+    user_question = "What does Rav Soloveitchik say about faith?"
+    data = [
+        DocumentModel(
+            _id="687c65e061b769c8ff78779f",
+            text="Faith requires intellectual engagement and commitment.",
+            metadata=Metadata(
+                chunk_size=100,
+                time_start="00:15:30",
+                time_end="00:16:45",
+                name_space="lecture",
+            ),
+            sanity_data=SanityData(
+                id="sanity1",
+                slug="lonely-man-of-faith",
+                title="The Lonely Man of Faith",
+                transcriptURL="https://example.com/transcript1",
+                hash="abc123",
+            ),
+            score=0.95,
+        ),
+        DocumentModel(
+            _id="687c65e061b769c8ff78780f",
+            text="Halakhic man embodies both the rational and the spiritual.",
+            metadata=Metadata(
+                chunk_size=150,
+                time_start="00:23:10",
+                time_end=None,  # Test with only start time
+                name_space="book",
+            ),
+            sanity_data=SanityData(
+                id="sanity2",
+                slug="halakhic-man-lecture",
+                title="Halakhic Man Lecture",
+                transcriptURL="https://example.com/transcript2",
+                hash="def456",
+            ),
+            score=0.87,
+        ),
+        DocumentModel(
+            _id="687c65e061b769c8ff78790f",
+            text="Prayer is an expression of human vulnerability.",
+            metadata=Metadata(
+                chunk_size=120,
+                time_start=None,  # Test with no timestamp
+                time_end=None,
+                name_space="essay",
+            ),
+            sanity_data=SanityData(
+                id="sanity3",
+                slug="prayer-essay",
+                title="On Prayer",
+                transcriptURL="https://example.com/transcript3",
+                hash="ghi789",
+            ),
+            score=0.82,
+        ),
+    ]
+    
+    prompt = generate_prompt(user_question, data, prompt_id="structured_json")
+    
+    # Verify it uses the structured_json template
+    assert "output ONLY a valid JSON object" in prompt.value
+    assert "MOST RELEVANT quoted sources" in prompt.value
+    assert prompt.id == "structured_json"
+    
+    # Verify JSON-formatted context entries with proper escaping
+    # Entry 1: with start-end timestamp
+    assert '{"slug": "lonely-man-of-faith", "timestamp": "00:15:30-00:16:45"' in prompt.value
+    assert '"text": "Faith requires intellectual engagement and commitment."' in prompt.value
+    
+    # Entry 2: with only start timestamp
+    assert '{"slug": "halakhic-man-lecture", "timestamp": "00:23:10"' in prompt.value
+    assert '"text": "Halakhic man embodies both the rational and the spiritual."' in prompt.value
+    
+    # Entry 3: with null timestamp
+    assert '{"slug": "prayer-essay", "timestamp": null' in prompt.value
+    assert '"text": "Prayer is an expression of human vulnerability."' in prompt.value
+    
+    # Verify user question is included
+    assert user_question in prompt.value

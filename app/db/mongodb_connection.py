@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Any
+import logging
 
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import OperationFailure, ExecutionTimeout
@@ -18,6 +19,8 @@ from rag.app.exceptions.db import (
 )
 from rag.app.schemas.data import VectorEmbedding, SanityData, TranscriptData
 from rag.app.models.data import DocumentModel, Metadata
+
+logger = logging.getLogger(__name__)
 
 
 class MongoEmbeddingStore(EmbeddingConnection):
@@ -60,6 +63,13 @@ class MongoEmbeddingStore(EmbeddingConnection):
         # Increase the initial limit to account for potential duplicates
         initial_limit = min(k * 3, 1000)  # Get more documents initially
 
+        logger.info(
+            f"[RETRIEVE] Starting vector search in collection='{self.collection.name}', "
+            f"index='{self.index}', vector_path='{self.vector_path}', "
+            f"k={k}, threshold={threshold}, name_spaces={name_spaces}, "
+            f"initial_limit={initial_limit}, vector_dimension={len(embedded_data)}"
+        )
+
         pipeline = []
         # 1. $vectorSearch first
         pipeline.append(
@@ -77,6 +87,7 @@ class MongoEmbeddingStore(EmbeddingConnection):
         # 2. Then optionally filter with $match if you have name_spaces
         if name_spaces is not None and len(name_spaces) > 0:
             pipeline.append({"$match": {"metadata.name_space": {"$in": name_spaces}}})
+            logger.debug(f"[RETRIEVE] Added namespace filter: {name_spaces}")
 
         # Add the similarity score as a field named "score"
         pipeline.append({"$addFields": {"score": {"$meta": "vectorSearchScore"}}})
@@ -112,16 +123,34 @@ class MongoEmbeddingStore(EmbeddingConnection):
             }
         )
 
+        logger.debug(f"[RETRIEVE] Aggregation pipeline: {pipeline}")
+
         try:
             cursor = self.collection.aggregate(pipeline, maxTimeMS=500)
             results = await cursor.to_list(length=k)
+            logger.info(
+                f"[RETRIEVE] Query completed, raw_results_count={len(results)}, "
+                f"collection='{self.collection.name}', index='{self.index}'"
+            )
         except ExecutionTimeout as e:
+            logger.error(
+                f"[RETRIEVE ERROR] ExecutionTimeout in collection='{self.collection.name}', "
+                f"index='{self.index}', maxTimeMS=500, error: {e}"
+            )
             raise RetrievalTimeoutException(
                 f"Failed to retrieve documents. Request timed out: {e}"
             )
         except OperationFailure as e:
+            logger.error(
+                f"[RETRIEVE ERROR] OperationFailure in collection='{self.collection.name}', "
+                f"index='{self.index}', error: {e}"
+            )
             raise RetrievalException("Mongo failed to retrieve documents: {}".format(e))
         except Exception as e:
+            logger.error(
+                f"[RETRIEVE ERROR] Unexpected error in collection='{self.collection.name}', "
+                f"index='{self.index}', error: {str(e)}", exc_info=True
+            )
             raise DataBaseException(f"Failed to retrieve documents: {e}")
 
         documents: List[DocumentModel] = []
@@ -132,6 +161,7 @@ class MongoEmbeddingStore(EmbeddingConnection):
 
             # Skip if we've already seen this text_id (extra safety)
             if text_id in seen_text_ids:
+                logger.debug(f"[RETRIEVE] Skipping duplicate text_id: {text_id}")
                 continue
             seen_text_ids.add(text_id)
 
@@ -149,8 +179,19 @@ class MongoEmbeddingStore(EmbeddingConnection):
             documents.append(document)
 
         if not documents:
+            logger.warning(
+                f"[RETRIEVE] No documents found above threshold={threshold}, "
+                f"collection='{self.collection.name}', index='{self.index}', "
+                f"vector_path='{self.vector_path}', name_spaces={name_spaces}, "
+                f"raw_results_before_dedup={len(results)}"
+            )
             raise NoDocumentFoundException
 
+        logger.info(
+            f"[RETRIEVE] Successfully retrieved {len(documents)} unique documents, "
+            f"collection='{self.collection.name}', index='{self.index}', "
+            f"score_range=[{documents[-1].score:.4f}, {documents[0].score:.4f}]"
+        )
         return documents
 
     async def get_all_unique_transcript_ids(self) -> list[TranscriptData]:
