@@ -121,6 +121,9 @@ async def handler(
         else:
 
             async def full_response():
+                import logging
+                logger = logging.getLogger(__name__)
+                
                 llm_response = await get_llm_response(
                     metrics_connection=metrics_conn,
                     prompt=prompt.value,
@@ -132,23 +135,59 @@ async def handler(
                         parsed = json.loads(llm_response)
                         main_text = parsed.get("main_text", "")
                         sources_raw = parsed.get("sources", [])
+                        
+                        logger.info(f"[FULL RESPONSE] LLM returned {len(sources_raw)} extracted quotes")
+                        
                         # Normalize sources into expected shape
                         sources = []
-                        for s in sources_raw:
+                        slug_counts = {}  # Track quotes per slug
+                        
+                        for idx, s in enumerate(sources_raw):
                             if not isinstance(s, dict):
                                 continue
-                            sources.append(
-                                {
-                                    "slug": s.get("slug", ""),
-                                    "timestamp": s.get("timestamp"),
-                                    "text": s.get("text", ""),
-                                }
+                            extracted_text = s.get("text", "")
+                            slug = s.get("slug", "")
+                            source_entry = {
+                                "slug": slug,
+                                "timestamp": s.get("timestamp"),
+                                "text": extracted_text,
+                            }
+                            sources.append(source_entry)
+                            
+                            # Count quotes per slug
+                            slug_counts[slug] = slug_counts.get(slug, 0) + 1
+                            
+                            # Log extraction quality
+                            text_length = len(extracted_text)
+                            word_count = len(extracted_text.split())
+                            logger.info(
+                                f"[FULL RESPONSE] Quote {idx+1}: slug={source_entry['slug']}, "
+                                f"timestamp={source_entry['timestamp']}, "
+                                f"text_length={text_length} chars, word_count={word_count} words"
                             )
+                        
+                        # Log distribution of quotes across sources
+                        unique_slugs = len(slug_counts)
+                        logger.info(
+                            f"[FULL RESPONSE] Returning {len(sources)} total quotes from {unique_slugs} unique source(s)"
+                        )
+                        for slug, count in slug_counts.items():
+                            logger.info(f"[FULL RESPONSE] Source '{slug}': {count} quote(s) extracted")
                         return ChatResponse(
                             main_text=main_text,
                             sources=sources,
                         )
-                    except Exception:
+                    except json.JSONDecodeError as e:
+                        logger.error(f"[FULL RESPONSE ERROR] JSON decode error: {e}, response preview: {llm_response[:500]}")
+                        raise HTTPException(
+                            status_code=500,
+                            detail={
+                                "code": "invalid_llm_json",
+                                "message": "LLM returned invalid JSON for FULL response",
+                            },
+                        )
+                    except Exception as e:
+                        logger.error(f"[FULL RESPONSE ERROR] Unexpected error: {e}", exc_info=True)
                         raise HTTPException(
                             status_code=500,
                             detail={
@@ -209,12 +248,20 @@ async def generate(
         DataBaseException: For database retrieval errors.
         LLMException: For prompt generation errors.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     request_id = uuid.uuid4().hex
+    logger.info(f"[GENERATE START] request_id={request_id}, question='{user_question}', name_spaces={name_spaces}, prompt_id={prompt_id}")
+    
     # Preprocess question
     cleaned_question = pre_process_user_query(user_question)
+    logger.info(f"[GENERATE] request_id={request_id}, cleaned_question='{cleaned_question}'")
 
     # Generate embedding with metrics logging
     embedding = None
+    logger.info(f"[GENERATE] request_id={request_id}, Starting embedding generation with config={embedding_configuration}")
+    
     async with metrics_connection.timed(
         metric_type="EMBEDDING", data={"request_id": request_id}
     ):
@@ -223,6 +270,7 @@ async def generate(
                 text=cleaned_question,
                 configuration=embedding_configuration,
             )
+            logger.info(f"[GENERATE] request_id={request_id}, Embedding generated successfully, vector_dimension={len(embedding.vector) if embedding else 'None'}")
 
         except (
             EmbeddingException,
@@ -230,11 +278,14 @@ async def generate(
             EmbeddingAPIException,
             EmbeddingTimeOutException,
         ) as e:
+            logger.error(f"[GENERATE ERROR] request_id={request_id}, Embedding error: {e}")
             raise e
         except Exception as e:
+            logger.error(f"[GENERATE ERROR] request_id={request_id}, Unexpected embedding error: {str(e)}", exc_info=True)
             raise EmbeddingException(f"Unexpected embedding error: {str(e)}")
 
         if embedding is None:
+            logger.error(f"[GENERATE ERROR] request_id={request_id}, Embedding is None")
             raise EmbeddingException(
                 f"Could not generate embedding for {user_question}"
             )
@@ -242,6 +293,18 @@ async def generate(
     # Retrieve matching documents with metrics logging
     vector: list[float] = embedding.vector
     data: list[DocumentModel] = []
+    
+    # Get collection details for logging
+    collection_name = connection.collection.name if hasattr(connection, 'collection') else 'unknown'
+    index_name = connection.index if hasattr(connection, 'index') else 'unknown'
+    vector_path = connection.vector_path if hasattr(connection, 'vector_path') else 'unknown'
+    
+    logger.info(
+        f"[GENERATE] request_id={request_id}, Starting document retrieval, "
+        f"collection='{collection_name}', index='{index_name}', vector_path='{vector_path}', "
+        f"vector_dimension={len(vector)}, name_spaces={name_spaces}"
+    )
+    
     async with metrics_connection.timed(
         metric_type="RETRIEVAL", data={"request_id": request_id}
     ):
@@ -249,17 +312,42 @@ async def generate(
             data = await connection.retrieve(
                 embedded_data=vector, name_spaces=name_spaces
             )
-        except DataBaseException:
+            logger.info(
+                f"[GENERATE] request_id={request_id}, Retrieved {len(data)} documents from database, "
+                f"collection='{collection_name}', index='{index_name}'"
+            )
+            if data:
+                logger.info(
+                    f"[GENERATE] request_id={request_id}, Top document score: {data[0].score:.4f}, "
+                    f"slug: {data[0].sanity_data.slug}, text_preview: {data[0].text[:100]}..."
+                )
+        except DataBaseException as e:
+            logger.error(
+                f"[GENERATE ERROR] request_id={request_id}, Database exception: {e}, "
+                f"collection='{collection_name}', index='{index_name}', vector_path='{vector_path}', "
+                f"name_spaces={name_spaces}"
+            )
             raise
         except Exception as e:
+            logger.error(
+                f"[GENERATE ERROR] request_id={request_id}, Unexpected retrieval error: {str(e)}, "
+                f"collection='{collection_name}', index='{index_name}', vector_path='{vector_path}'",
+                exc_info=True
+            )
             raise DataBaseException(f"Database retrieval failed: {str(e)}")
 
+    logger.info(f"[GENERATE] request_id={request_id}, Generating prompt with {len(data)} documents, prompt_id={prompt_id}")
+    
     try:
         prompt = generate_prompt(cleaned_question, data, prompt_id=prompt_id)
+        logger.info(f"[GENERATE] request_id={request_id}, Prompt generated, length={len(prompt.value)} chars, prompt_id={prompt.id}")
     except LLMBaseException as e:
+        logger.error(f"[GENERATE ERROR] request_id={request_id}, LLM exception: {e}")
         raise e
     except Exception as e:
+        logger.error(f"[GENERATE ERROR] request_id={request_id}, Unexpected prompt generation error: {str(e)}", exc_info=True)
         raise LLMBaseException(str(e))
+    
     transcript_data: list[TranscriptData] = []
     for datum in data:
         transcript_data.append(
@@ -270,4 +358,5 @@ async def generate(
             )
         )
 
+    logger.info(f"[GENERATE END] request_id={request_id}, Returning prompt and {len(transcript_data)} transcript_data items")
     return prompt, transcript_data

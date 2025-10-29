@@ -251,6 +251,8 @@ def generate_prompt(
     """
     Constructs a prompt including retrieved context snippets.
     """
+    logger = logging.getLogger(__name__)
+    logger.info(f"[PROMPT GENERATION] Starting prompt generation, num_docs={len(data)}, max_tokens={max_tokens}, prompt_id={prompt_id}")
 
     def estimate_tokens(text: str) -> int:
         return len(text) // 4  # very rough estimate
@@ -285,6 +287,12 @@ def generate_prompt(
                 f"\"slug\": \"{safe_slug}\", \"timestamp\": {ts_value}, \"text\": \"{safe_text}\""
                 "}"
             )
+            # Log the source chunk being added
+            logger.debug(
+                f"[PROMPT GENERATION] Added source: slug={doc.sanity_data.slug}, "
+                f"timestamp={timestamp}, text_length={len(quote)} chars, "
+                f"text_preview={quote[:100]}..."
+            )
         else:
             # Original human-readable entry with metadata dump
             metadata_str = ", ".join(
@@ -296,20 +304,26 @@ def generate_prompt(
         tokens = estimate_tokens(entry)
 
         if token_count + tokens > max_tokens:
+            logger.info(f"[PROMPT GENERATION] Token limit reached. Processed {len(context_parts)} documents, ~{token_count} tokens")
             break
 
         context_parts.append(entry)
         token_count += tokens
 
     context = "\n\n".join(context_parts)
+    logger.info(f"[PROMPT GENERATION] Context built with {len(context_parts)} documents, ~{token_count} estimated tokens")
 
     prompt_template = get_prompt_template(prompt_id)
+    logger.info(f"[PROMPT GENERATION] Using prompt template: {prompt_id or 'default (1)'}")
 
     filled_prompt = prompt_template.format(
         context=context,
         user_question=user_question,
     )
 
+    logger.info(f"[PROMPT GENERATION] Final prompt length: {len(filled_prompt)} characters")
+    logger.debug(f"[PROMPT GENERATION] Prompt preview (first 500 chars): {filled_prompt[:500]}...")
+    
     return Prompt(
         value=filled_prompt,
         id=str(prompt_id),
