@@ -1,4 +1,5 @@
 import json
+import uuid
 import pysrt
 from rag.app.schemas.data import Chunk, TypeOfFormat
 import logging
@@ -11,18 +12,22 @@ logger = logging.getLogger(__name__)
 def build_chunks(subs, name_space, embed_word_limit=EMBEDDING_TEXT_SIZE) -> list[Chunk]:
     """
     Builds a list of Chunk objects from subtitle segments, where each chunk contains
-    a 40-word segment for embedding and the full text for reference.
+    a segment for embedding and the full text for reference.
+
+    All chunks created from the same text segment share a single UUID (full_text_id)
+    to enable deduplication during retrieval.
 
     :param subs: List of subtitle objects (pysrt.SubRipItem).
     :param name_space: The name of the file or namespace for this chunk.
-    :param embed_word_limit: Number of words per embedding segment (default: 40).
-    :return: List of Chunk objects.
+    :param embed_word_limit: Number of words per embedding segment (default: 50 from EMBEDDING_TEXT_SIZE).
+    :return: List of Chunk objects with shared full_text_id.
 
     Example:
-    If subs contain 120 words total:
-    - Chunk 1: text_to_embed = words 1-40, full_text = all 120 words
-    - Chunk 2: text_to_embed = words 41-80, full_text = all 120 words
-    - Chunk 3: text_to_embed = words 81-120, full_text = all 120 words
+    If subs contain 200 words total and embed_word_limit=50:
+    - Chunk 1: text_to_embed = words 1-50, full_text = all 200 words, full_text_id = <uuid>
+    - Chunk 2: text_to_embed = words 51-100, full_text = all 200 words, full_text_id = <same uuid>
+    - Chunk 3: text_to_embed = words 101-150, full_text = all 200 words, full_text_id = <same uuid>
+    - Chunk 4: text_to_embed = words 151-200, full_text = all 200 words, full_text_id = <same uuid>
     """
     if not subs:
         return []
@@ -39,21 +44,26 @@ def build_chunks(subs, name_space, embed_word_limit=EMBEDDING_TEXT_SIZE) -> list
         words = clean_text.split()
         all_words.extend(words)
 
-    # Create chunks with 40-word segments for embedding
+    # Generate ONE shared UUID for all chunks from this text segment
+    # This is critical for deduplication during retrieval
+    shared_text_id = uuid.uuid4()
+
+    # Create chunks with embed_word_limit-word segments for embedding
     chunks = []
     total_words = len(all_words)
 
     for i in range(0, total_words, embed_word_limit):
-        # Get the next 40 words (or remaining words if less than 40)
+        # Get the next segment (or remaining words if less than embed_word_limit)
         end_idx = min(i + embed_word_limit, total_words)
         text_to_embed = " ".join(all_words[i:end_idx])
         embed_size = end_idx - i
 
         chunk = Chunk(
+            full_text_id=shared_text_id,  # Same UUID for all chunks from this segment
             time_start=str(start_time),
             time_end=str(end_time),
             full_text=full_text,  # Same complete text for all chunks
-            text_to_embed=text_to_embed,  # Unique 40-word segment
+            text_to_embed=text_to_embed,  # Unique segment for embedding
             chunk_size=total_words,  # Total word count across all subs
             embed_size=embed_size,  # Words in this specific embedding segment
             name_space=name_space,
@@ -98,6 +108,9 @@ def chunk_txt(content: tuple[str, str]) -> list[Chunk]:
     """
     Splits plain text into word-based chunks without timing metadata.
 
+    For TXT files, each chunk is independent (full_text = text_to_embed),
+    so each gets its own unique UUID.
+
     :param content: A tuple containing (filename, raw text content).
     :return: A list of Chunk objects, each with text data, chunk size, and file-level metadata.
     """
@@ -112,7 +125,9 @@ def chunk_txt(content: tuple[str, str]) -> list[Chunk]:
         chunk_words = words[i : i + EMBEDDING_TEXT_SIZE]
         chunk_text = " ".join(chunk_words)
 
+        # For TXT files, each chunk is independent, so generate unique UUID
         chunk = Chunk(
+            full_text_id=uuid.uuid4(),
             name_space=file_name,
             text_to_embed=chunk_text,
             chunk_size=len(chunk_words),
