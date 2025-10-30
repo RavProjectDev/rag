@@ -3,7 +3,7 @@ import uuid
 import pysrt
 from rag.app.schemas.data import Chunk, TypeOfFormat
 import logging
-from rag.app.services.preprocess.constants import EMBEDDING_TEXT_SIZE, FULL_TEXT_SIZE
+from rag.app.services.preprocess.constants import EMBEDDING_TEXT_SIZE, FULL_TEXT_SIZE, CHUNKS_PER_SEGMENT
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,17 +17,23 @@ def build_chunks(subs, name_space, embed_word_limit=EMBEDDING_TEXT_SIZE) -> list
     All chunks created from the same text segment share a single UUID (full_text_id)
     to enable deduplication during retrieval.
 
+    If the segment exceeds FULL_TEXT_SIZE (200 words), it is divided evenly into
+    CHUNKS_PER_SEGMENT (4) chunks. Otherwise, it uses the embed_word_limit (50 words)
+    to create chunks.
+
     :param subs: List of subtitle objects (pysrt.SubRipItem).
     :param name_space: The name of the file or namespace for this chunk.
     :param embed_word_limit: Number of words per embedding segment (default: 50 from EMBEDDING_TEXT_SIZE).
     :return: List of Chunk objects with shared full_text_id.
 
     Example:
-    If subs contain 200 words total and embed_word_limit=50:
-    - Chunk 1: text_to_embed = words 1-50, full_text = all 200 words, full_text_id = <uuid>
-    - Chunk 2: text_to_embed = words 51-100, full_text = all 200 words, full_text_id = <same uuid>
-    - Chunk 3: text_to_embed = words 101-150, full_text = all 200 words, full_text_id = <same uuid>
-    - Chunk 4: text_to_embed = words 151-200, full_text = all 200 words, full_text_id = <same uuid>
+    If subs contain 250 words total (exceeds FULL_TEXT_SIZE):
+    - Divides evenly into 4 chunks: ~63+63+62+62 words each
+    - All chunks share the same full_text_id and full_text (all 250 words)
+    
+    If subs contain 200 words total:
+    - Divides into 4 chunks: 50+50+50+50 words each
+    - All chunks share the same full_text_id and full_text (all 200 words)
     """
     if not subs:
         return []
@@ -48,27 +54,55 @@ def build_chunks(subs, name_space, embed_word_limit=EMBEDDING_TEXT_SIZE) -> list
     # This is critical for deduplication during retrieval
     shared_text_id = uuid.uuid4()
 
-    # Create chunks with embed_word_limit-word segments for embedding
     chunks = []
     total_words = len(all_words)
 
-    for i in range(0, total_words, embed_word_limit):
-        # Get the next segment (or remaining words if less than embed_word_limit)
-        end_idx = min(i + embed_word_limit, total_words)
-        text_to_embed = " ".join(all_words[i:end_idx])
-        embed_size = end_idx - i
+    # If segment exceeds FULL_TEXT_SIZE, divide evenly into CHUNKS_PER_SEGMENT chunks
+    if total_words > FULL_TEXT_SIZE:
+        # Calculate words per chunk (distribute remainder evenly)
+        words_per_chunk = total_words // CHUNKS_PER_SEGMENT
+        remainder = total_words % CHUNKS_PER_SEGMENT
+        
+        start_idx = 0
+        for i in range(CHUNKS_PER_SEGMENT):
+            # Add 1 extra word to first 'remainder' chunks to distribute evenly
+            chunk_size = words_per_chunk + (1 if i < remainder else 0)
+            end_idx = start_idx + chunk_size
+            
+            text_to_embed = " ".join(all_words[start_idx:end_idx])
+            
+            chunk = Chunk(
+                full_text_id=shared_text_id,  # Same UUID for all chunks from this segment
+                time_start=str(start_time),
+                time_end=str(end_time),
+                full_text=full_text,  # Same complete text for all chunks
+                text_to_embed=text_to_embed,  # Unique segment for embedding
+                chunk_size=total_words,  # Total word count across all subs
+                embed_size=chunk_size,  # Words in this specific embedding segment
+                name_space=name_space,
+            )
+            chunks.append(chunk)
+            start_idx = end_idx
+    else:
+        # Original logic for segments <= FULL_TEXT_SIZE
+        # Use embed_word_limit to create chunks
+        for i in range(0, total_words, embed_word_limit):
+            # Get the next segment (or remaining words if less than embed_word_limit)
+            end_idx = min(i + embed_word_limit, total_words)
+            text_to_embed = " ".join(all_words[i:end_idx])
+            embed_size = end_idx - i
 
-        chunk = Chunk(
-            full_text_id=shared_text_id,  # Same UUID for all chunks from this segment
-            time_start=str(start_time),
-            time_end=str(end_time),
-            full_text=full_text,  # Same complete text for all chunks
-            text_to_embed=text_to_embed,  # Unique segment for embedding
-            chunk_size=total_words,  # Total word count across all subs
-            embed_size=embed_size,  # Words in this specific embedding segment
-            name_space=name_space,
-        )
-        chunks.append(chunk)
+            chunk = Chunk(
+                full_text_id=shared_text_id,  # Same UUID for all chunks from this segment
+                time_start=str(start_time),
+                time_end=str(end_time),
+                full_text=full_text,  # Same complete text for all chunks
+                text_to_embed=text_to_embed,  # Unique segment for embedding
+                chunk_size=total_words,  # Total word count across all subs
+                embed_size=embed_size,  # Words in this specific embedding segment
+                name_space=name_space,
+            )
+            chunks.append(chunk)
 
     return chunks
 
@@ -82,6 +116,8 @@ def chunk_srt(content: tuple[str, str]) -> list[Chunk]:
     chunks = []
     current_chunk = []
     word_count = 0
+    last_segment_subs = []  # Track the last processed segment for potential merging
+    chunks_from_last_segment = 0  # Track how many chunks from last segment
 
     for sub in subs:
         words = sub.text.replace("\n", " ").split()
@@ -89,16 +125,41 @@ def chunk_srt(content: tuple[str, str]) -> list[Chunk]:
         word_count += len(words)
 
         if word_count >= FULL_TEXT_SIZE:
+            # Store this segment's subtitles before processing (for potential merge later)
+            last_segment_subs = current_chunk.copy()
+            
             # Build chunks from current_chunk and add them to chunks list
             new_chunks = build_chunks(current_chunk, file_name)
+            chunks_from_last_segment = len(new_chunks)
             chunks.extend(new_chunks)
+            
             current_chunk = []
             word_count = 0
 
     # Handle remaining subtitles if any
     if current_chunk:
-        new_chunks = build_chunks(current_chunk, file_name)
-        chunks.extend(new_chunks)
+        # Count words in remaining chunk
+        remaining_word_count = sum(
+            len(sub.text.replace("\n", " ").split()) for sub in current_chunk
+        )
+        
+        # If remaining is < FULL_TEXT_SIZE (200 words), merge with previous segment
+        if remaining_word_count < FULL_TEXT_SIZE and last_segment_subs:
+            logger.debug(
+                f"Merging remaining {remaining_word_count} words with previous segment "
+                f"(avoiding small chunk < {FULL_TEXT_SIZE} words)"
+            )
+            # Remove the last segment's chunks (they'll be recreated with merged content)
+            chunks = chunks[:-chunks_from_last_segment]
+            # Merge the previous segment with remaining subtitles
+            merged_subs = last_segment_subs + current_chunk
+            # Rebuild with merged content (will create 4 even chunks if > 200 words)
+            merged_chunks = build_chunks(merged_subs, file_name)
+            chunks.extend(merged_chunks)
+        else:
+            # Remaining is >= FULL_TEXT_SIZE, process normally
+            new_chunks = build_chunks(current_chunk, file_name)
+            chunks.extend(new_chunks)
 
     logger.debug(f"Created {len(chunks)} chunks from {file_name}")
     return chunks

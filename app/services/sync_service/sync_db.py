@@ -89,7 +89,7 @@ if __name__ == "__main__":
         )
         mongodb_db_name = "rav_dev"
         db = client[mongodb_db_name]
-        vector_embedding_collection_name = "gemini_embeddings_v2"
+        vector_embedding_collection_name = "gemini_embeddings_v3"
         vector_embedding_collection = db[vector_embedding_collection_name]
         collection_index = os.getenv("COLLECTION_INDEX")
         vector_path = "vector"
