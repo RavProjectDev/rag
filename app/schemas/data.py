@@ -12,14 +12,17 @@ class Chunk(BaseModel):
     Represents a chunk of text with metadata and character position.
 
     Attributes:
-        metadata (dict[str, str]): Additional metadata about the chunk (e.g., source, date).
-        text_to_embed (str): The raw text content of the chunk.
-        chunk_size (int): The total size of the chunk in characters.
-        char_start (int): The starting character index of the chunk in the original text.
-        char_end (int): The ending character index of the chunk in the original text.
+        full_text_id (uuid.UUID): Unique identifier shared by all chunks from the same text segment.
+        full_text (str): The complete text segment (e.g., 200 words).
+        text_to_embed (str): The specific portion to embed (e.g., 50 words).
+        chunk_size (int): The total size of the full text segment in words.
+        embed_size (int): The size of this specific embedding chunk in words.
+        time_start (str): Start timestamp from SRT file, if available.
+        time_end (str): End timestamp from SRT file, if available.
+        name_space (str): Identifier for the source transcript/document.
     """
 
-    full_text_id: uuid = uuid.uuid4()
+    full_text_id: uuid.UUID
     full_text: str
     text_to_embed: str
     chunk_size: int
@@ -60,6 +63,7 @@ class VectorEmbedding(BaseModel):
         return {
             "vector": self.vector,
             "text": self.metadata.full_text,
+            "text_id": str(self.metadata.full_text_id),  # Top-level for MongoDB grouping
             "metadata": self.metadata.to_dict(),
             "sanity_data": self.sanity_data.to_dict(),
         }
