@@ -282,11 +282,11 @@ def test_generate_prompt_with_context():
     ]
     prompt = generate_prompt(user_question, data, max_tokens=1000)
     assert (
-        '"Modernity must be approached with critical engagement."\n(Source: chunk_size: 100, time_start: 00:00, time_end: 01:00, name_space: lecture)'
+        '"Modernity must be approached with critical engagement."\n(Source: slug: lonely-man, chunk_size: 100, time_start: 00:00, time_end: 01:00, name_space: lecture)'
         in prompt.value
     )
     assert (
-        '"Faith and reason are complementary."\n(Source: chunk_size: 150, time_start: 01:00, time_end: 02:00, name_space: book)'
+        '"Faith and reason are complementary."\n(Source: slug: halakhic-man, chunk_size: 150, time_start: 01:00, time_end: 02:00, name_space: book)'
         in prompt.value
     )
     assert user_question in prompt.value
@@ -331,10 +331,8 @@ def test_generate_prompt_token_limit():
     ]
     prompt = generate_prompt(user_question, data, max_tokens=100)
     assert f'{"A" * 50}' in prompt.value
-    assert (
-        f'{"B" * 1000}\n(Source: chunk_size: 100, time_start: 00:00, time_end: 01:00, name_space: lecture)'
-        not in prompt.value
-    )
+    assert "test-source" in prompt.value
+    assert "test-source-2" not in prompt.value
 
 
 def test_generate_prompt_structured_json_format():
@@ -406,16 +404,13 @@ def test_generate_prompt_structured_json_format():
     
     # Verify JSON-formatted context entries with proper escaping
     # Entry 1: with start-end timestamp
-    assert '{"slug": "lonely-man-of-faith", "timestamp": "00:15:30-00:16:45"' in prompt.value
-    assert '"text": "Faith requires intellectual engagement and commitment."' in prompt.value
+    assert '{"slug": "lonely-man-of-faith", "timestamp": "00:15:30-00:16:45", "text": "Faith requires intellectual engagement and commitment."}' in prompt.value
     
     # Entry 2: with only start timestamp
-    assert '{"slug": "halakhic-man-lecture", "timestamp": "00:23:10"' in prompt.value
-    assert '"text": "Halakhic man embodies both the rational and the spiritual."' in prompt.value
+    assert '{"slug": "halakhic-man-lecture", "timestamp": "00:23:10", "text": "Halakhic man embodies both the rational and the spiritual."}' in prompt.value
     
     # Entry 3: with null timestamp
-    assert '{"slug": "prayer-essay", "timestamp": null' in prompt.value
-    assert '"text": "Prayer is an expression of human vulnerability."' in prompt.value
+    assert '{"slug": "prayer-essay", "timestamp": null, "text": "Prayer is an expression of human vulnerability."}' in prompt.value
     
     # Verify user question is included
     assert user_question in prompt.value

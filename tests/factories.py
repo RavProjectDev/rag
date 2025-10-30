@@ -45,6 +45,7 @@ def random_srt_time():
 
 def make_chunk(randomize=False, include_times=False, **overrides):
     data = {
+        "full_text_id": uuid.uuid4(),
         "full_text": random_string(50) if randomize else "default text",
         "text_to_embed": random_string(50) if randomize else "default text",
         "chunk_size": random.randint(50, 200) if randomize else 100,

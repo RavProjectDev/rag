@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     metrics_collection: str = "metrics"
     environment: Environment = Environment.PRD
     exceptions_collection: str = "exceptions"
+    # Document retrieval retry configuration
+    retrieval_timeout_ms: int = 2000  # Increased timeout for document retrieval
+    max_retry_attempts: int = 3  # Maximum number of retry attempts
+    retry_delay_seconds: float = 1.0  # Initial delay between retries
+    retry_backoff_multiplier: float = 2.0  # Exponential backoff multiplier
     model_config = {"env_file": ".env"}
     google_application_credentials: str
 
