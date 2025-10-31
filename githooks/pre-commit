@@ -1,0 +1,31 @@
+  UW PICO 5.09                                           File: .git/hooks/pre-commit                                             
+
+#!/bin/sh
+# Git pre-commit hook that runs the test suite before each commit.
+
+set -e
+
+echo "[pre-commit] Running project test suite..."
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[pre-commit] python3 not found; install Python 3 before committing." >&2
+  exit 1
+fi
+
+if ! python3 -c "import pytest" >/dev/null 2>&1; then
+  echo "[pre-commit] pytest is not installed in the current environment." >&2
+  echo "[pre-commit] Install it (e.g. 'pip install -r rag/requirements-dev.txt')." >&2
+  exit 1
+fi
+
+if ! python3 -c "import pytest" >/dev/null 2>&1; then
+  echo "[pre-commit] pytest is not installed in the current environment." >&2
+  echo "[pre-commit] Install it (e.g. 'pip install -r rag/requirements-dev.txt')." >&2
+  exit 1
+fi
+
+python3 -m pytest tests --asyncio-mode=auto
+  
+
+
+
