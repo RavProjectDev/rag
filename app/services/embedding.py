@@ -16,7 +16,7 @@ from google.api_core.exceptions import (
 from google.auth import default
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 
-from rag.app.core.config import get_settings
+from rag.app.core.config import get_settings, Environment
 from rag.app.exceptions.embedding import *
 from rag.app.schemas.data import EmbeddingConfiguration, Embedding
 
@@ -49,6 +49,12 @@ def _get_embedding_service_config() -> EmbeddingServiceConfig:
 
 def _initialize_vertexai() -> None:
     """Initialize Vertex AI with project configuration."""
+    settings = get_settings()
+
+    # Skip external initialization in test environments to allow unit tests to run without GCP
+    if getattr(settings, "environment", None) == Environment.TEST:
+        return
+
     try:
         config = _get_embedding_service_config()
         credentials, _ = default()
@@ -56,7 +62,7 @@ def _initialize_vertexai() -> None:
             project=config.project_id, location=config.region, credentials=credentials
         )
     except Exception as e:
-        raise EmbeddingException
+        raise EmbeddingException(f"Failed to initialize Vertex AI: {e}")
 
 
 def _get_embedding_model() -> TextEmbeddingModel:
