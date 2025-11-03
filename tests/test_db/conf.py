@@ -15,6 +15,7 @@ class AsyncCollectionWrapper:
     def __init__(self):
         self._collection = mongomock.MongoClient().db.collection
         self._mocked_aggregate_result = None
+        self.name = "test_collection"
 
     def find(self, *args, **kwargs):
         cursor = self._collection.find(*args, **kwargs)
@@ -33,6 +34,10 @@ class AsyncCollectionWrapper:
 
         # fallback: just return everything in the collection
         return AsyncCursorWrapper(self._collection.find())
+
+    @property
+    def index(self):
+        return "test_index"
 
     def mock_aggregate_result(self, docs):
         """Set custom results to be returned by aggregate()."""

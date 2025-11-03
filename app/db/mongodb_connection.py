@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Any
 import logging
+import asyncio
 
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo.errors import OperationFailure, ExecutionTimeout
@@ -19,6 +20,7 @@ from rag.app.exceptions.db import (
 )
 from rag.app.schemas.data import VectorEmbedding, SanityData, TranscriptData
 from rag.app.models.data import DocumentModel, Metadata
+from rag.app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,12 @@ class MongoEmbeddingStore(EmbeddingConnection):
         k=5,
         threshold: float = 0.85,
     ) -> list[DocumentModel]:
+        settings = get_settings()
+        max_retries = settings.max_retry_attempts
+        timeout_ms = settings.retrieval_timeout_ms
+        retry_delay = settings.retry_delay_seconds
+        backoff_multiplier = settings.retry_backoff_multiplier
+
         # Increase the initial limit to account for potential duplicates
         initial_limit = min(k * 3, 1000)  # Get more documents initially
 
@@ -67,7 +75,8 @@ class MongoEmbeddingStore(EmbeddingConnection):
             f"[RETRIEVE] Starting vector search in collection='{self.collection.name}', "
             f"index='{self.index}', vector_path='{self.vector_path}', "
             f"k={k}, threshold={threshold}, name_spaces={name_spaces}, "
-            f"initial_limit={initial_limit}, vector_dimension={len(embedded_data)}"
+            f"initial_limit={initial_limit}, vector_dimension={len(embedded_data)}, "
+            f"max_retries={max_retries}, timeout_ms={timeout_ms}"
         )
 
         pipeline = []
@@ -125,34 +134,86 @@ class MongoEmbeddingStore(EmbeddingConnection):
 
         logger.debug(f"[RETRIEVE] Aggregation pipeline: {pipeline}")
 
-        try:
-            cursor = self.collection.aggregate(pipeline, maxTimeMS=500)
-            results = await cursor.to_list(length=k)
-            logger.info(
-                f"[RETRIEVE] Query completed, raw_results_count={len(results)}, "
-                f"collection='{self.collection.name}', index='{self.index}'"
-            )
-        except ExecutionTimeout as e:
-            logger.error(
-                f"[RETRIEVE ERROR] ExecutionTimeout in collection='{self.collection.name}', "
-                f"index='{self.index}', maxTimeMS=500, error: {e}"
-            )
-            raise RetrievalTimeoutException(
-                f"Failed to retrieve documents. Request timed out: {e}"
-            )
-        except OperationFailure as e:
-            logger.error(
-                f"[RETRIEVE ERROR] OperationFailure in collection='{self.collection.name}', "
-                f"index='{self.index}', error: {e}"
-            )
-            raise RetrievalException("Mongo failed to retrieve documents: {}".format(e))
-        except Exception as e:
-            logger.error(
-                f"[RETRIEVE ERROR] Unexpected error in collection='{self.collection.name}', "
-                f"index='{self.index}', error: {str(e)}", exc_info=True
-            )
-            raise DataBaseException(f"Failed to retrieve documents: {e}")
+        # Retry logic with exponential backoff
+        last_exception = None
+        current_delay = retry_delay
 
+        for attempt in range(max_retries + 1):  # +1 for initial attempt
+            try:
+                logger.info(
+                    f"[RETRIEVE] Attempt {attempt + 1}/{max_retries + 1} in collection='{self.collection.name}', "
+                    f"index='{self.index}', timeout_ms={timeout_ms}"
+                )
+                
+                cursor = self.collection.aggregate(pipeline, maxTimeMS=timeout_ms)
+                results = await cursor.to_list(length=k)
+                
+                logger.info(
+                    f"[RETRIEVE] Query completed successfully on attempt {attempt + 1}, "
+                    f"raw_results_count={len(results)}, collection='{self.collection.name}', "
+                    f"index='{self.index}'"
+                )
+                
+                # If we get here, the query was successful
+                break
+                
+            except ExecutionTimeout as e:
+                last_exception = e
+                logger.warning(
+                    f"[RETRIEVE] ExecutionTimeout on attempt {attempt + 1}/{max_retries + 1} "
+                    f"in collection='{self.collection.name}', index='{self.index}', "
+                    f"maxTimeMS={timeout_ms}, error: {e}"
+                )
+                
+                if attempt < max_retries:
+                    logger.info(
+                        f"[RETRIEVE] Retrying in {current_delay:.2f} seconds... "
+                        f"(attempt {attempt + 1}/{max_retries + 1})"
+                    )
+                    await asyncio.sleep(current_delay)
+                    current_delay *= backoff_multiplier
+                else:
+                    logger.error(
+                        f"[RETRIEVE ERROR] All {max_retries + 1} attempts failed with ExecutionTimeout "
+                        f"in collection='{self.collection.name}', index='{self.index}', "
+                        f"maxTimeMS={timeout_ms}"
+                    )
+                    raise RetrievalTimeoutException(
+                        f"Failed to retrieve documents after {max_retries + 1} attempts. "
+                        f"Request timed out: {e}"
+                    )
+                    
+            except OperationFailure as e:
+                # OperationFailure is typically not retryable (e.g., invalid query, permissions)
+                logger.error(
+                    f"[RETRIEVE ERROR] OperationFailure in collection='{self.collection.name}', "
+                    f"index='{self.index}', error: {e}"
+                )
+                raise RetrievalException("Mongo failed to retrieve documents: {}".format(e))
+                
+            except Exception as e:
+                last_exception = e
+                logger.warning(
+                    f"[RETRIEVE] Unexpected error on attempt {attempt + 1}/{max_retries + 1} "
+                    f"in collection='{self.collection.name}', index='{self.index}', error: {str(e)}"
+                )
+                
+                if attempt < max_retries:
+                    logger.info(
+                        f"[RETRIEVE] Retrying in {current_delay:.2f} seconds... "
+                        f"(attempt {attempt + 1}/{max_retries + 1})"
+                    )
+                    await asyncio.sleep(current_delay)
+                    current_delay *= backoff_multiplier
+                else:
+                    logger.error(
+                        f"[RETRIEVE ERROR] All {max_retries + 1} attempts failed with unexpected error "
+                        f"in collection='{self.collection.name}', index='{self.index}', "
+                        f"error: {str(e)}", exc_info=True
+                    )
+                    raise DataBaseException(f"Failed to retrieve documents after {max_retries + 1} attempts: {e}")
+
+        # Process results
         documents: List[DocumentModel] = []
         seen_text_ids = set()  # Additional safety check in Python
 
