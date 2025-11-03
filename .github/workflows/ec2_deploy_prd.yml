@@ -1,15 +1,17 @@
 name: Deploy to EC2 PRD
+
 on:
   push:
     branches: [main]
 
 env:
   DOCKER_IMAGE: ravprojectdev/rag
-  CONTAINER_NAME: rag_container
+  CONTAINER_NAME: rag_prd_container
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -31,34 +33,41 @@ jobs:
         push: true
         no-cache: true
         tags: |
-          ${{ env.DOCKER_IMAGE }}:latest
+          ${{ env.DOCKER_IMAGE }}:prd
           ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
         platforms: linux/amd64
 
-    - name: Deploy to EC2
+    - name: Deploy to EC2 (Production)
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.EC2_HOST }}
+        host: ${{ secrets.EC2_HOST_PRD }}
         username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_SSH_KEY }}
+        key: ${{ secrets.EC2_SSH_KEY_PRD }}
         script: |
           set -e
           
-          # Clean up old images and containers
-          echo "Cleaning up old containers and images..."
-          docker stop ${{ env.CONTAINER_NAME }} 2>/dev/null || true
-          docker rm ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+          echo "🚀 Starting production deployment..."
+          
+          # Stop and rename old container for rollback
+          if docker ps -a | grep -q ${{ env.CONTAINER_NAME }}; then
+            echo "Stopping and renaming old container..."
+            docker stop ${{ env.CONTAINER_NAME }} || true
+            docker rename ${{ env.CONTAINER_NAME }} ${CONTAINER_NAME}_old || true
+          fi
+
+          # Clean up unused images
+          echo "Cleaning up old Docker images..."
           docker system prune -af --volumes
-          
-          # Pull the latest image (force pull)
-          echo "Pulling latest Docker image..."
+
+          # Pull the latest image
+          echo "Pulling latest image..."
           docker pull ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
-          
+
           # Prepare Google Cloud credentials
           echo "Setting up Google Cloud credentials..."
           echo "${{ secrets.GCLOUD_KEY_JSON_B64 }}" | base64 -d > /tmp/gcloud-key.json
           chmod 600 /tmp/gcloud-key.json
-          
+
           # Run the new container
           echo "Starting new container..."
           docker run -d \
@@ -76,17 +85,17 @@ jobs:
             -e VERTEX_REGION="${{ secrets.VERTEX_REGION }}" \
             -e GOOGLE_APPLICATION_CREDENTIALS="/rag/credentials/gcloud-key.json" \
             ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
-          
+
           # Verify deployment
           echo "Verifying deployment..."
-          sleep 5
-          if docker ps | grep -q ${{ env.CONTAINER_NAME }}; then
-            echo "✅ Container is running successfully"
+          sleep 10
+          if curl -f http://localhost:8000/health; then
+            echo "✅ Health check passed. Production deployment successful."
             docker logs --tail 10 ${{ env.CONTAINER_NAME }}
           else
-            echo "❌ Container failed to start"
-            docker logs ${{ env.CONTAINER_NAME }}
+            echo "❌ Health check failed. Rolling back..."
+            docker stop ${{ env.CONTAINER_NAME }} || true
+            docker rm ${{ env.CONTAINER_NAME }} || true
+            docker start ${CONTAINER_NAME}_old || true
             exit 1
           fi
-        
-          echo "🚀 Deployment completed successfully!"
