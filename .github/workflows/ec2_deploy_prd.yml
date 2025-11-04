@@ -40,9 +40,9 @@ jobs:
     - name: Deploy to EC2 (Production)
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.EC2_HOST_PRD }}
+        host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_SSH_KEY_PRD }}
+        key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           set -e
           
