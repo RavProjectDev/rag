@@ -77,6 +77,7 @@ jobs:
             -e GOOGLE_CLOUD_PROJECT_ID="${{ secrets.GOOGLE_CLOUD_PROJECT_ID }}" \
             -e VERTEX_REGION="${{ secrets.VERTEX_REGION }}" \
             -e GOOGLE_APPLICATION_CREDENTIALS="/rag/credentials/gcloud-key.json" \
+            -e ENVIORNMENT="STG" \
             ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
 
           echo "Verifying deployment..."
