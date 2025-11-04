@@ -18,7 +18,7 @@ class UploadRatingsDocument(BaseModel):
 class UploadFormData(BaseModel):
     documentData: DocumentModel
     rating: int
-    prompt_id: int
+    prompt_id: str
 
 
 class UploadRatingsRequestCHUNK(BaseModel):

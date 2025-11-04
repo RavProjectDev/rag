@@ -1,5 +1,18 @@
+from enum import Enum
+
+
+class PromptType(str, Enum):
+    """Enumeration of available prompt types for the RAG system."""
+    
+    QUOTE_ONLY = "quote_only_mode"
+    CONTEXT_ANALYSIS = "context_analysis_mode"
+    COMPREHENSIVE_ANALYSIS = "comprehensive_analysis_mode"
+    PRODUCTION = "production_mode"
+    STRUCTURED_JSON = "structured_json"
+
+
 PROMPTS = {
-    "1": """You are a Rav Soloveitchik expert assistant. Your primary role is to present relevant quotes with minimal organizational structure.
+    PromptType.QUOTE_ONLY.value: """You are a Rav Soloveitchik expert assistant. Your primary role is to present relevant quotes with minimal organizational structure.
 
 # Context
 {context}
@@ -24,7 +37,7 @@ PROMPTS = {
 **[Additional Topic if needed]**
 > "Quote text here"
 > *(Full Source Title, [timestamp start-end if available])*""",
-    "2": """You are a Rav Soloveitchik expert assistant. Your role is to provide analysis using ONLY the provided context while maintaining scholarly rigor.
+    PromptType.CONTEXT_ANALYSIS.value: """You are a Rav Soloveitchik expert assistant. Your role is to provide analysis using ONLY the provided context while maintaining scholarly rigor.
 
 # Context
 {context}
@@ -47,7 +60,7 @@ PROMPTS = {
 - **Context-Based Analysis** with integrated quotes and citations (Full Source Title, [timestamp start-end if available])
 - **Additional Themes** only if explicitly present in context
 - **Summary** based only on the provided material (1-2 sentences)""",
-    "3": """You are a Rav Soloveitchik expert assistant. Your role is to provide comprehensive analysis using ONLY the provided context.
+    PromptType.COMPREHENSIVE_ANALYSIS.value: """You are a Rav Soloveitchik expert assistant. Your role is to provide comprehensive analysis using ONLY the provided context.
 
 # Context
 {context}
@@ -73,7 +86,7 @@ PROMPTS = {
 - **Conclusion** synthesizing only what is present in the provided context
 
 *All content must remain strictly within the boundaries of the provided context*""",
-    "production": """You are a Rav Soloveitchik expert assistant. Your primary role is to present relevant quotes and teachings from the provided context, not to interpret or explain extensively.
+    PromptType.PRODUCTION.value: """You are a Rav Soloveitchik expert assistant. Your primary role is to present relevant quotes and teachings from the provided context, not to interpret or explain extensively.
 
 # Context
 {context}
@@ -101,7 +114,7 @@ Structure your response as follows:
   > *(Full Source Title, [timestamp start-end if available])*
 - **Additional Supporting Quotes** if available in the context
 - **Minimal Summary** (1-2 sentences) connecting the quotes to the question, based only on what is explicitly in the context""",
-    "structured_json": """You are a Rav Soloveitchik expert assistant. Your task is to output ONLY a valid JSON object that summarizes the main idea and lists the MOST RELEVANT quoted sources from the provided context.
+    PromptType.STRUCTURED_JSON.value: """You are a Rav Soloveitchik expert assistant. Your task is to output ONLY a valid JSON object that summarizes the main idea and lists the MOST RELEVANT quoted sources from the provided context.
 
 # Context
 {context}
@@ -158,3 +171,18 @@ IMPORTANT NOTES:
 - The same slug/timestamp can appear MULTIPLE times if there are multiple relevant quotes from that source
 - Do NOT include sources with no relevant content - skip them entirely""",
 }
+
+
+def resolve_prompt_key(prompt_id: PromptType | None) -> str:
+    """Convert PromptType enum to its string value.
+    
+    Args:
+        prompt_id: A PromptType enum value or None (defaults to PRODUCTION)
+        
+    Returns:
+        The resolved prompt key string
+    """
+    if prompt_id is None:
+        return PromptType.PRODUCTION.value
+    
+    return prompt_id.value

@@ -61,10 +61,17 @@ async def lifespan(app: FastAPI):
         app.state.metrics_connection = metrics_connection
         app.state.exceptions_logger = exceptions_logger
         app.state.db_client = db
-        start_scheduler(
-            connection=mongo_connection,
-            embedding_configuration=settings.embedding_configuration,
-        )
+        
+        # Only run the sync scheduler in production
+        if settings.environment == Environment.PRD:
+            logger.info("Starting sync scheduler (PRD environment)")
+            start_scheduler(
+                connection=mongo_connection,
+                embedding_configuration=settings.embedding_configuration,
+            )
+        else:
+            logger.info(f"Skipping sync scheduler (environment: {settings.environment})")
+        
         yield
 
     except Exception as e:

@@ -18,6 +18,7 @@ from rag.app.models.data import Prompt
 from rag.app.schemas.data import EmbeddingConfiguration, LLMModel
 from rag.app.services.embedding import generate_embedding
 from rag.app.services.llm import get_llm_response, generate_prompt
+from rag.app.services.prompts import PromptType
 from rag.app.services.preprocess.user_input import pre_process_user_query
 
 # Configure logging
@@ -28,7 +29,11 @@ logger = logging.getLogger(__name__)
 OUTPUT_FILE_PATH = Path(
     "/Users/dothanbardichev/Desktop/RAV/RAG/rag/app/form_data/questions_llm_response_map.json"
 )
-MAX_PROMPTS = 3
+PROMPT_KEYS = [
+    PromptType.QUOTE_ONLY,
+    PromptType.CONTEXT_ANALYSIS,
+    PromptType.COMPREHENSIVE_ANALYSIS,
+]
 MONGODB_POOL_SIZE = 50
 
 
@@ -93,8 +98,8 @@ async def generate_prompts(
 
     # Generate prompts
     prompts = []
-    for i in range(1, MAX_PROMPTS + 1):
-        prompt = generate_prompt(cleaned_question, data, prompt_id=i)
+    for prompt_key in PROMPT_KEYS:
+        prompt = generate_prompt(cleaned_question, data, prompt_id=prompt_key)
         prompts.append(prompt)
 
     return prompts

@@ -10,6 +10,7 @@ COLLECTIONS = ["gemini_embeddings_v2", "chunk_embeddings_gemini_embedding_001"]
 
 class Environment(Enum):
     PRD = "PRD"
+    STG = "STG"
     TEST = "TEST"
 
 
@@ -27,7 +28,7 @@ class Settings(BaseSettings):
     vertex_region: str
     external_api_timeout: int = 60
     metrics_collection: str = "metrics"
-    environment: Environment = Environment.PRD
+    environment: Environment = Environment.STG
     exceptions_collection: str = "exceptions"
     # Document retrieval retry configuration
     retrieval_timeout_ms: int = 2000  # Increased timeout for document retrieval

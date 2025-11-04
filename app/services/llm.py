@@ -26,7 +26,11 @@ from rag.app.exceptions.llm import (
 )
 from rag.app.models.data import DocumentModel, Prompt
 from rag.app.schemas.data import LLMModel
-from rag.app.services.prompts import PROMPTS
+from rag.app.services.prompts import (
+    PROMPTS,
+    PromptType,
+    resolve_prompt_key,
+)
 
 
 @lru_cache()
@@ -246,13 +250,17 @@ def generate_prompt(
     user_question: str,
     data: list[DocumentModel],
     max_tokens: int = 1500,
-    prompt_id=None,
+    prompt_id: PromptType = PromptType.PRODUCTION,
 ) -> Prompt:
     """
     Constructs a prompt including retrieved context snippets.
     """
     logger = logging.getLogger(__name__)
-    logger.info(f"[PROMPT GENERATION] Starting prompt generation, num_docs={len(data)}, max_tokens={max_tokens}, prompt_id={prompt_id}")
+    logger.info(
+        f"[PROMPT GENERATION] Starting prompt generation, num_docs={len(data)}, max_tokens={max_tokens}, prompt_id={prompt_id}"
+    )
+
+    resolved_prompt_id = resolve_prompt_key(prompt_id)
 
     def estimate_tokens(text: str) -> int:
         return len(text) // 4  # very rough estimate
@@ -276,7 +284,7 @@ def generate_prompt(
             timestamp = None
 
         # Choose context entry format based on prompt_id
-        if prompt_id == "structured_json":
+        if resolved_prompt_id == PromptType.STRUCTURED_JSON.value:
             # JSON-line style entry with explicit fields for easier association
             # Ensure double quotes and nulls where appropriate
             safe_text = quote.replace("\\", "\\\\").replace("\"", "\\\"")
@@ -314,7 +322,9 @@ def generate_prompt(
     logger.info(f"[PROMPT GENERATION] Context built with {len(context_parts)} documents, ~{token_count} estimated tokens")
 
     prompt_template = get_prompt_template(prompt_id)
-    logger.info(f"[PROMPT GENERATION] Using prompt template: {prompt_id or 'default (1)'}")
+    logger.info(
+        f"[PROMPT GENERATION] Using prompt template: {resolved_prompt_id}"
+    )
 
     filled_prompt = prompt_template.format(
         context=context,
@@ -326,12 +336,10 @@ def generate_prompt(
     
     return Prompt(
         value=filled_prompt,
-        id=str(prompt_id),
+        id=resolved_prompt_id,
     )
 
 
-def get_prompt_template(prompt: int = None) -> str:
-    if not prompt:
-        return PROMPTS["1"]
-    else:
-        return PROMPTS[str(prompt)]
+def get_prompt_template(prompt: PromptType = PromptType.PRODUCTION) -> str:
+    resolved_prompt_id = resolve_prompt_key(prompt)
+    return PROMPTS[resolved_prompt_id]
