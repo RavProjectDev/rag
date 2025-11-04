@@ -8,7 +8,7 @@ on:
 env:
   DOCKER_IMAGE: ravprojectdev/prd
   CONTAINER_NAME: rag_container_prd
-  PORT: 8001
+  PORT: 8000
 
 jobs:
   deploy:
