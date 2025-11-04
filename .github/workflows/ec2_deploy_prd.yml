@@ -82,4 +82,4 @@ jobs:
 
           echo "Verifying deployment..."
           sleep 5
-          docker ps | grep ${{ env.CONTAINER_NAME }} && echo "✅ STG container running on port ${{ env.PORT }}"
+          docker ps | grep ${{ env.CONTAINER_NAME }} && echo "✅ PRD container running on port ${{ env.PORT }}"
