@@ -44,12 +44,20 @@ from rag.app.services.embedding import generate_embedding
 from rag.app.services.form import get_all_form_data
 from rag.app.services.llm import get_llm_response, generate_prompt
 from rag.app.services.preprocess.user_input import pre_process_user_query
+from rag.app.services.prompts import PromptType
 
 SITE_EMBEDDING_EVAL_COLLECTION = "site_data_chunking_perfromance"
 SITE_FULL_PERFORMANCE_EVAL_COLLECTION = "site_data_prompt_performance"
 
 
 router = APIRouter()
+
+
+PROMPT_KEYS = [
+    PromptType.MINIMAL,
+    PromptType.MODERATE,
+    PromptType.COMPREHENSIVE,
+]
 
 
 @router.get(
@@ -206,8 +214,10 @@ async def _generate(
 
     prompts: list[Prompt] = []
     try:
-        for i in range(1, 4):
-            prompts.append(generate_prompt(cleaned_question, data, prompt_id=i))
+        for prompt_key in PROMPT_KEYS:
+            prompts.append(
+                generate_prompt(cleaned_question, data, prompt_id=prompt_key)
+            )
     except Exception as e:
         raise
 

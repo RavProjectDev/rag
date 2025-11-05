@@ -32,6 +32,7 @@ from rag.app.schemas.response import ChatResponse, TranscriptData, ErrorResponse
 from rag.app.services.embedding import generate_embedding
 from rag.app.services.llm import stream_llm_response, generate_prompt, get_llm_response
 from rag.app.services.preprocess.user_input import pre_process_user_query
+from rag.app.services.prompts import PromptType
 
 router = APIRouter()
 
@@ -94,12 +95,8 @@ async def handler(
                 embedding_configuration=embedding_configuration,
                 connection=embedding_conn,
                 metrics_connection=metrics_conn,
-                name_spaces=chat_request.name_spaces,  # Pass metrics_conn for logging
-                prompt_id=(
-                    "structured_json"
-                    if chat_request.type_of_request == TypeOfRequest.FULL
-                    else None
-                ),
+                name_spaces=chat_request.name_spaces,
+                prompt_id=chat_request.prompt_type,
             ),
             timeout=settings.external_api_timeout,
         )
@@ -130,7 +127,7 @@ async def handler(
                     model=llm_configuration,
                 )
                 # If we used the structured JSON prompt, validate JSON and return it
-                if prompt.id == "structured_json":
+                if prompt.id == PromptType.STRUCTURED_JSON.value:
                     try:
                         parsed = json.loads(llm_response)
                         main_text = parsed.get("main_text", "")
@@ -227,7 +224,7 @@ async def generate(
     connection: EmbeddingConnection,
     metrics_connection: MetricsConnection,
     name_spaces: list[str] = None,
-    prompt_id: str | None = None,
+    prompt_id: PromptType = PromptType.LIGHT,
 ) -> (Prompt, list[TranscriptData]):
     """
     Generate an LLM prompt and retrieve relevant context.
