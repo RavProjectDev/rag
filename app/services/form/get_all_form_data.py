@@ -30,9 +30,9 @@ OUTPUT_FILE_PATH = Path(
     "/Users/dothanbardichev/Desktop/RAV/RAG/rag/app/form_data/questions_llm_response_map.json"
 )
 PROMPT_KEYS = [
-    PromptType.QUOTE_ONLY,
-    PromptType.CONTEXT_ANALYSIS,
-    PromptType.COMPREHENSIVE_ANALYSIS,
+    PromptType.MINIMAL,
+    PromptType.MODERATE,
+    PromptType.COMPREHENSIVE,
 ]
 MONGODB_POOL_SIZE = 50
 

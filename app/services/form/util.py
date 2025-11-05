@@ -2,9 +2,9 @@ from rag.app.services.prompts import PromptType
 
 
 PROMPT_KEYS = [
-    PromptType.QUOTE_ONLY,
-    PromptType.CONTEXT_ANALYSIS,
-    PromptType.COMPREHENSIVE_ANALYSIS,
+    PromptType.MINIMAL,
+    PromptType.MODERATE,
+    PromptType.COMPREHENSIVE,
 ]
 
 

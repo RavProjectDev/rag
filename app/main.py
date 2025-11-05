@@ -18,6 +18,7 @@ from rag.app.api.v1.health import router as health_router
 from rag.app.api.v1.docs import router as docs_router
 from rag.app.api.v1.mock import router as mock_router
 from rag.app.api.v1.form import router as form_router
+from rag.app.api.v1.prompt import router as prompt_router
 from rag.app.db.connections import MetricsConnection, ExceptionsLogger
 
 from rag.app.db.mongodb_connection import (
@@ -228,6 +229,7 @@ app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
 app.include_router(upload_router, prefix="/api/v1/upload", tags=["data-management"])
 app.include_router(health_router, prefix="/api/v1/health", tags=["health"])
 app.include_router(mock_router, prefix="/api/v1/test", tags=["mock"])
+app.include_router(prompt_router, prefix="/api/v1/prompt", tags=["prompt"])
 app.include_router(
     docs_router, prefix="", tags=["docs"]
 )  # only path-level tags applied within router

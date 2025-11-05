@@ -224,7 +224,7 @@ async def generate(
     connection: EmbeddingConnection,
     metrics_connection: MetricsConnection,
     name_spaces: list[str] = None,
-    prompt_id: PromptType = PromptType.PRODUCTION,
+    prompt_id: PromptType = PromptType.LIGHT,
 ) -> (Prompt, list[TranscriptData]):
     """
     Generate an LLM prompt and retrieve relevant context.

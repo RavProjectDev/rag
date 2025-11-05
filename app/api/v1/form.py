@@ -54,9 +54,9 @@ router = APIRouter()
 
 
 PROMPT_KEYS = [
-    PromptType.QUOTE_ONLY,
-    PromptType.CONTEXT_ANALYSIS,
-    PromptType.COMPREHENSIVE_ANALYSIS,
+    PromptType.MINIMAL,
+    PromptType.MODERATE,
+    PromptType.COMPREHENSIVE,
 ]
 
 

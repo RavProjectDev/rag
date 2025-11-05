@@ -33,7 +33,7 @@ data = [
                 "somebody. No wonder that Chava was created the very instant Adam was charged with "
                 "the task of l’avdah u’l’shamrah.”  \n"
                 "*(Yom Kodesh v’Yom Chol, p. 30)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -77,7 +77,7 @@ data = [
                 "world.  It is at once a profound emotional union—“two hearts fixed on one little "
                 "person”—and a divinely mandated collaboration, fulfilling the human task of "
                 "co-creating and stewarding creation.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -154,7 +154,7 @@ data = [
                 "embraced authority—contemporary Jewish couples can anchor their marriages in the "
                 "timeless vision of the Rav, ensuring that their homes become living testaments to "
                 "Torah-imbued partnership.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "What does the Rav say about the purpose of marriage in a Jewish life?",
@@ -172,7 +172,7 @@ data = [
                 '> "Only in solitude does man experience the freedom necessary for creativeness and '
                 'for joy."  \n'
                 "> *(Rav J. B. Soloveitchik, “The Lonely Man of Faith,” Tradition 7:2 [1965], p. 23)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -215,7 +215,7 @@ data = [
                 "interpersonal and divine communion; joy is the celebratory outcome of that very "
                 "solitude embraced. Thus, far from being mutually exclusive, they form a single "
                 "dynamic that defines human spiritual life.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -281,7 +281,7 @@ data = [
                 "each other, they coalesce into a dynamic unity—each amplifying the other in the "
                 "symphony of human becoming.  Thus, to live joyfully is not to escape our solitude "
                 "but to embrace it as the very condition that makes true celebration possible.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "Can joy and existential loneliness coexist in the Rav's thought?",
@@ -302,7 +302,7 @@ data = [
                 "for people, for companionship, for a teacher … whose power of intuiting and "
                 'understanding exceed his."  \n'
                 "*(Torah and Humility, in The Emergence of Ethical Man, p. 52)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "Contextual Introduction  \n"
@@ -349,7 +349,7 @@ data = [
                 "path to kedusha. Only through the breaking of self-reliance—whether by shattered "
                 "tablets or intellectual despair—does the individual attain genuine humility, "
                 "communal solidarity, and ultimate spiritual ascent.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -423,7 +423,7 @@ data = [
                 "isolation into collective sanctity. In this dialectic of breaking and building, the "
                 "Rav teaches that true holiness (kedusha) and sovereignty (malchus) emerge only after "
                 "we have first been broken, humbled, and then lovingly reassembled.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "Why does the Rav emphasize struggle as part of spiritual growth?",
@@ -452,7 +452,7 @@ data = [
                 '> "The humble man recognizes that all his aspirations must be subordinated to the '
                 'canons of the Divine will."  \n'
                 "> *(The Halakhic Mind, p. 142)",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "Thematic Overview  \n"
@@ -498,7 +498,7 @@ data = [
                 "2. Ibid., 01:26:00–10.  \n"
                 "3. Ibid., 01:26:15–25.  \n"
                 "4. Ibid., 01:27:30–39.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -555,7 +555,7 @@ data = [
                 "the infinite. Thus, one’s greatest achievement may be the lived paradox of seeking "
                 "holiness with both fervor and reverent restraint—knowing that in the endless pursuit "
                 "lies the true sanctity.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "How should one balance personal ambition with religious humility?",
@@ -586,7 +586,7 @@ data = [
                 '> "The marriage bond reflects the divine covenant: it is consummated in and upheld '
                 'by love."  \n'
                 "> *(Family Redeemed, p. 44)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -629,7 +629,7 @@ data = [
                 "personalizes and perpetuates Torah across generations. While thought structures the "
                 "legal and intellectual edifice of the covenant, love animates it, securing the unity "
                 "and vitality of klal Yisrael.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -719,7 +719,7 @@ data = [
                 "gesture of kindness into a reaffirmation of the eternal covenant. Thus, to build and "
                 "sustain the Jewish people as a holy and Torah-centered community, we must advance "
                 "both intellectual rigor and the dynamic embrace of mutual care.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "What role does love play in building a covenantal relationship?",
@@ -744,7 +744,7 @@ data = [
                 "humiliation. … When he’s incurably ill, he suffers. Not only is he exposed to pain; "
                 "again, he’s losing something. What does he stand to lose?”  \n"
                 "*(Prayer and Redemption, p. 22)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -795,7 +795,7 @@ data = [
                 "vulnerability.  By engaging suffering—especially the threat to our dignity—one is "
                 "compelled into an existential confrontation that, properly embraced, elevates human "
                 "consciousness and fosters an “inspired existence” in proximity to the Divine.  ",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -858,7 +858,7 @@ data = [
                 "becomes a crucible for spiritual creativity, where the human spirit, tempered by "
                 "pain, can emerge both more fragile and more radiant in its capacity for empathy, "
                 "prayer, and inspired living.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "Is there meaning in suffering, or must we simply endure it?",
@@ -896,7 +896,7 @@ data = [
                 '> "Even amidst the clatter of existence, the lonely man can summon within himself '
                 'the quietude necessary for profound prayer."  \n'
                 "> *(The Lonely Man of Faith, Tradition 6:2, p. 28)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -938,7 +938,7 @@ data = [
                 "the Shemoneh Esreh’s structure of petitions. Through this form of “selfish” but "
                 "rigorously focused dialogue, the worshiper transcends external noise and reclaims "
                 "authentic communion with God.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -1014,7 +1014,7 @@ data = [
                 "00:43:10). In so doing, prayer becomes not an escape from reality but the very means "
                 "by which we confront our loneliness, discover our truest longings, and hear God’s "
                 "answer echoing through the chambers of our soul.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "How can one cultivate genuine prayer in a distracted world?",
@@ -1041,7 +1041,7 @@ data = [
                 "> “The halakhah is the actualization of man’s encounter with the Divine, the "
                 "concrete medium through which sanctity enters into everyday life.”  \n"
                 "> *(Soloveitchik, God in Search of Man, p. 123)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -1087,7 +1087,7 @@ data = [
                 "dual structure—rigorous in form, yet profoundly experiential—Halacha guides the "
                 "intellect and enlivens the spirit, anchoring the individual within the unbroken "
                 "chain of communal life.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "Rich Introduction  \n"
@@ -1161,7 +1161,7 @@ data = [
                 "our era of flux, Soloveitchik’s teaching invites us to rebuild our worlds on a "
                 "foundation that is simultaneously unshakable and vibrantly alive—purely Jewish, yet "
                 "profoundly human.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "Why is Halacha central to the Rav's vision of Jewish life?",
@@ -1181,7 +1181,7 @@ data = [
                 'whether what I’m going to say is true or not. It’s hard to say."  \n'
                 "*(Religious Definitions of Man and his Social Institutions Part 1 transcript, "
                 "00:02:11–00:02:59)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -1220,7 +1220,7 @@ data = [
                 "True religious conviction, therefore, flourishes through humility, cautious "
                 "reasoning, and an embrace of perplexity rather than through absolute epistemic "
                 "assurance.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "Rich Introduction  \n"
@@ -1279,7 +1279,7 @@ data = [
                 "the face of enduring mystery. In this paradigm, certainty is not the goal but a "
                 "mirage; humility and honest grappling with doubt are the truest expressions of "
                 "religious devotion.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "Does the Rav believe that faith requires certainty?",
@@ -1304,7 +1304,7 @@ data = [
                 "Third, that of total speech, clear, unequivocal speech. The first one, total "
                 'silence, characterizes slavery. The last one, clear speech, full redemption."  \n'
                 "*(Prayer and Redemption, p.103)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -1348,7 +1348,7 @@ data = [
                 "the journey from silent bondage to articulate personhood, culminating in an "
                 "individual who not only lives but has “a message to put across” to the world (Prayer "
                 "and Redemption, 00:12:43–14:01).",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -1425,7 +1425,7 @@ data = [
                 "and agent of redemption. This vision challenges us today to recognize that every "
                 "human being’s deepest bondage is a voiceless soul, and our highest calling is to "
                 "awaken and amplify authentic speech.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "What does it mean to be truly free according to the Rav?",
@@ -1449,7 +1449,7 @@ data = [
                 "\n"
                 '> "In the act of moral choice, man stands before God, alone and unmediated."  \n'
                 "> *(Family Redeemed, p. 202)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -1494,7 +1494,7 @@ data = [
                 "actualizing God’s infinite will within the finite human realm.  Through revelation, "
                 "intellectual effort, and the guiding authority of the teacher, the individual freely "
                 "participates in the ongoing creative process set in motion by the Creator.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -1558,7 +1558,7 @@ data = [
                 "architecture, is therefore not mere rule-following but the highest expression of "
                 "human dignity—an ever-renewing dance between God’s eternal call and man’s creative "
                 "response.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "How does the Rav view the act of making moral choices?",
@@ -1585,7 +1585,7 @@ data = [
                 '> "HaKadosh Baruch Hu’s patience and perseverance and His graciousness as a ba’al '
                 'chesed makes teshuva workable, makes teshuva possible."  \n'
                 "> *(Sefiras HaOmer, p. 113)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -1623,7 +1623,7 @@ data = [
                 "of Torah—with living teachers who guide us along God’s paths—and inward to the "
                 "realization of God’s chessed, which undergirds the very possibility of faith and "
                 "return.  In this dual movement, human frailty meets Divine grace.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "Rich Introduction  \n"
@@ -1701,7 +1701,7 @@ data = [
                 "but as warm illumination. Only through this integrated “sidbakun” can one truly "
                 "discover that the hand of HaKadosh Baruch Hu rests upon our shoulder and that the "
                 "breath of eternity indeed fans our face.  ",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "In times of doubt, where does the Rav suggest we turn?",
@@ -1718,7 +1718,7 @@ data = [
                 '> "When a person performs a single mitzvah, he establishes a mikdash me’at in this '
                 'world. The physical world thereby becomes the place of God’s manifestation."  \n'
                 "> *(The Halakhic Mind, p. 117)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -1765,7 +1765,7 @@ data = [
                 "festival rite or a daily injunction—is intrinsically “a mekadesh shem Shamayim,” he "
                 "offers a cohesive vision: holiness is not confined to exceptional moments but is "
                 "woven into the very fabric of ordinary life.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -1853,7 +1853,7 @@ data = [
                 "back to a posture of awe.  By reclaiming the “freakish” holiness of Shabbat and "
                 "festivals and miniaturizing it into quotidian acts, Rav Soloveitchik offers a living "
                 "blueprint for a life in which every moment is an encounter with the Divine.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "What is the Rav's view on finding meaning in everyday mitzvot?",
@@ -1877,7 +1877,7 @@ data = [
                 "Additionally:  \n"
                 "> “The divine silence is not a rejection but a summons to inner dialogue.”  \n"
                 "*(R. J. Soloveitchik, “The Lonely Man of Faith,” Judaism 14:226)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -1922,7 +1922,7 @@ data = [
                 "one truly hear the Divine voice. Far from lamenting divine muteness, the Rav invites "
                 "us to see in neighborly indifference the furnace that refines our capacity for "
                 "authentic dialogue with God.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -1980,7 +1980,7 @@ data = [
                 "creative dialogue of faith (Religious Definitions…, 00:55:05). In this interplay, "
                 "silence is neither purely human nor purely divine but the dynamic space where the "
                 "encounter with God and with neighbor is forged.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "How should we understand silence — from God or from others?",
@@ -2009,7 +2009,7 @@ data = [
                 "possibility, the opportunity to share in the Torah. And by sharing in Torah, to "
                 'share in holiness, in kedushah."  \n'
                 "> *(Torah and Humility, p. 213)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Contextual Introduction**  \n"
@@ -2056,7 +2056,7 @@ data = [
                 "authentic submission to Torah.  True obedience unfolds when each person, in humble "
                 "acknowledgment of divine greatness, exercises the God-granted freedom to innovate, "
                 "interpret, and deepen the communal body of halakhah.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -2120,7 +2120,7 @@ data = [
                 "self-assertion against Torah, but in the humility and creativity born of covenantal "
                 "surrender (Torah and Humility 01:14:21–01:16:51; Yom Kodesh v’Yom Chol "
                 "00:58:47–00:59:54).",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "Does individuality have a place in a life of submission to Torah?",
@@ -2161,7 +2161,7 @@ data = [
                 "intellectual, the other emotional. Dynamically, the bond of love is far stronger "
                 "than that of thought.”  \n"
                 "> *(Torah and Humility, 01:12:15–01:14:21)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -2208,7 +2208,7 @@ data = [
                 "dialectic of freedom and belonging, thought and love, individuality and covenant.  "
                 "Only within this dynamic communal matrix can the human being fully actualize both "
                 "personal creativity and collective destiny.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "Rich Introduction  \n"
@@ -2303,7 +2303,7 @@ data = [
                 "thinker but as loved, loving member of a covenantal people. Thus, community is "
                 "essential because it transforms individuals into a holy organism, charged with "
                 "carrying forward the light of Torah into an imperfect world.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "Why is community so essential in the Rav’s worldview?",
@@ -2327,7 +2327,7 @@ data = [
                 "gratuitous grant, but God gives man the divine image just for the asking. It is up "
                 'to man to take an ideal and translate it into a reality."  \n'
                 "> *(Prayer and Redemption, p. 88)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -2368,7 +2368,7 @@ data = [
                 "catalyzes self-awareness and creative struggle. This imago Dei therefore is not a "
                 "completed gift but a covenantal challenge, inviting humanity to actualize the divine "
                 "ideal through existential engagement and ethical action.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -2447,7 +2447,7 @@ data = [
                 "[1] Soloveitchik, “Religious Definitions of Man and his Social Institutions Part 2,” "
                 "00:36:06–00:37:36.  \n"
                 "[2] Soloveitchik, “Prayer and Redemption,” 00:55:01–00:55:58.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "What does it mean to be created in the image of God?",
@@ -2471,7 +2471,7 @@ data = [
                 "allegiance.”  \n"
                 "*(Isaiah, quoted in Religious Definitions of Man and his Social Institutions Part 2, "
                 "00:45:30)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -2509,7 +2509,7 @@ data = [
                 "the crucible of existential trial.  Through the disciplined, solitary act of "
                 "prayer—this “metaphysical exhaustion” turned into an embrace of divine will—the "
                 "believer transcends disillusionment and sustains an authentic relationship with God.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "Rich Introduction  \n"
@@ -2577,7 +2577,7 @@ data = [
                 "believer discovers that prayer is both the crucible and the balm of faith, enabling "
                 "one to maintain trust in the Divine order despite all tumult (Religious Definitions, "
                 "00:45:13).",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "How can one maintain faith when life feels chaotic or unjust?",
@@ -2599,7 +2599,7 @@ data = [
                 "> “The Jewish home is the primary locus of Divine revelation—an island of holiness "
                 "amidst a secular world.”  \n"
                 "*(R. J. B. Soloveitchik, The Halakhic Mind, ed. J. Blau, p. 147)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -2649,7 +2649,7 @@ data = [
                 "education. Anchored in the model of the kohen-teacher and fortified by both enduring "
                 "sanctity and humble self-awareness, the household emerges as a perpetual “mikdash "
                 "me’at,” radiating holiness into every facet of daily Jewish life.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -2717,7 +2717,7 @@ data = [
                 "of tradition—thereby ensuring that kedushah neither vanishes with exile nor shrinks "
                 "to the confines of stone and mortar but flourishes in the heart of the Jewish "
                 "dwelling.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "What does the Rav teach about building a home filled with kedusha?",
@@ -2746,7 +2746,7 @@ data = [
                 "intervenes immediately: Yes you are near, but are you satisfied? … I want to be "
                 "united with Him in the most perfect union.”  \n"
                 "*(Torah and Humility, p. 125)*",
-                "prompt_id": PromptType.QUOTE_ONLY.value,
+                "prompt_id": PromptType.MINIMAL.value,
             },
             {
                 "llm_response": "**Thematic Overview**  \n"
@@ -2803,7 +2803,7 @@ data = [
                 "\n"
                 "1 Prayer and Redemption, 00:55:01–00:55:58.  \n"
                 "2 Torah and Humility, 01:35:02–01:37:15.",
-                "prompt_id": PromptType.CONTEXT_ANALYSIS.value,
+                "prompt_id": PromptType.MODERATE.value,
             },
             {
                 "llm_response": "**Rich Introduction**  \n"
@@ -2878,7 +2878,7 @@ data = [
                 "education, leadership, and spiritual striving becomes a step toward realizing the "
                 "Divine image in ourselves and in others, confirming our vocation as co‐creators with "
                 "the Eternal Artist.",
-                "prompt_id": PromptType.COMPREHENSIVE_ANALYSIS.value,
+                "prompt_id": PromptType.COMPREHENSIVE.value,
             },
         ],
         "user_question": "What kind of person does the Rav believe we are meant to become?",

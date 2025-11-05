@@ -250,7 +250,7 @@ def generate_prompt(
     user_question: str,
     data: list[DocumentModel],
     max_tokens: int = 1500,
-    prompt_id: PromptType = PromptType.PRODUCTION,
+    prompt_id: PromptType = PromptType.LIGHT,
 ) -> Prompt:
     """
     Constructs a prompt including retrieved context snippets.
@@ -340,6 +340,6 @@ def generate_prompt(
     )
 
 
-def get_prompt_template(prompt: PromptType = PromptType.PRODUCTION) -> str:
+def get_prompt_template(prompt: PromptType = PromptType.LIGHT) -> str:
     resolved_prompt_id = resolve_prompt_key(prompt)
     return PROMPTS[resolved_prompt_id]

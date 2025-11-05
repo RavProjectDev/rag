@@ -15,7 +15,7 @@ class ChatRequest(BaseModel):
     type_of_request: TypeOfRequest
     name_spaces: list[str] | None = None
     prompt_type: PromptType = Field(
-        default=PromptType.PRODUCTION,
+        default=PromptType.LIGHT,
         description="Prompt type to use for generation. Defaults to Production mode."
     )
 
@@ -30,7 +30,7 @@ class ChatRequest(BaseModel):
 class FormRequest(BaseModel):
     question: str
     prompt_type: PromptType = Field(
-        default=PromptType.PRODUCTION,
+        default=PromptType.LIGHT,
         description="Prompt type to use for generation. Defaults to Production mode."
     )
 
