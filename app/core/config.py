@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     retry_delay_seconds: float = 1.0  # Initial delay between retries
     retry_backoff_multiplier: float = 2.0  # Exponential backoff multiplier
     model_config = {"env_file": ".env"}
-    google_application_credentials: str
+    google_application_credentials: str | None = None
 
 
 @lru_cache()
