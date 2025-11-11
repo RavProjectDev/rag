@@ -4,19 +4,20 @@ on:
   push:
     branches:
       - stg
-  workflow_dispatch:
+  workflow_dispatch: # Allow manual triggers
 
 env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCP_REGION: ${{ secrets.GCP_REGION }}
   SERVICE_NAME: rag-api-stg
   DOCKER_IMAGE: docker.io/ravprojectdev/rag
+  GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
 jobs:
   deploy:
     name: Build and Deploy to Cloud Run (Staging)
     runs-on: ubuntu-latest
-
+    
     permissions:
       contents: read
       id-token: write
@@ -58,10 +59,11 @@ jobs:
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
-            --image=docker.io/ravprojectdev/rag:${{ github.sha }} \
+            --image=${{ env.DOCKER_IMAGE }}:${{ github.sha }} \
             --platform=managed \
             --region=${{ env.GCP_REGION }} \
             --allow-unauthenticated \
+            --service-account=${{ env.GCP_SERVICE_ACCOUNT }} \
             --memory=2Gi \
             --cpu=1 \
             --min-instances=0 \
