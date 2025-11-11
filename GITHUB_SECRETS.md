@@ -15,7 +15,7 @@ This document lists all the GitHub Secrets needed for the CI/CD workflows.
 
 Required for both `deploy-stg-gcp.yml` and `deploy-prd-gcp.yml`
 
-### Deployment Secrets (3 required)
+### Deployment Secrets (5 required)
 
 ```
 GCP_PROJECT_ID
@@ -36,6 +36,14 @@ Example: {
   "client_email": "github-actions-deploy@project.iam.gserviceaccount.com",
   ...
 }
+
+DOCKERHUB_USERNAME
+Description: Your DockerHub username
+Example: ravprojectdev
+
+DOCKERHUB_TOKEN
+Description: DockerHub access token (not password)
+Get from: https://hub.docker.com/settings/security
 ```
 
 ### Application Secrets (stored in Google Secret Manager, not GitHub)
@@ -131,6 +139,8 @@ Example: us-central1
 - [ ] `GCP_PROJECT_ID`
 - [ ] `GCP_REGION`
 - [ ] `GCP_SA_KEY`
+- [ ] `DOCKERHUB_USERNAME`
+- [ ] `DOCKERHUB_TOKEN`
 - [ ] Create secrets in Google Secret Manager (see GCP_DEPLOYMENT.md)
 
 ### For EC2:
