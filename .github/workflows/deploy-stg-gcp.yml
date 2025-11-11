@@ -69,7 +69,7 @@ jobs:
             --min-instances=0 \
             --max-instances=10 \
             --port=8080 \
-            --timeout=300 \
+            --timeout=400 \
             --set-env-vars="ENVIRONMENT=STG" \
             --set-secrets="OPENAI_API_KEY=OPENAI_API_KEY:latest" \
             --set-secrets="MONGODB_URI=MONGODB_URI:latest" \
