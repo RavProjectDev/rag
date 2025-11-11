@@ -1,3 +1,25 @@
+from rag.app.services.prompts import PromptType
+
+
+PROMPT_KEYS = [
+    PromptType.MINIMAL,
+    PromptType.MODERATE,
+    PromptType.COMPREHENSIVE,
+]
+
+
+def _build_response_objects(responses):
+    result = []
+    for index, response in enumerate(responses):
+        prompt_key = (
+            PROMPT_KEYS[index]
+            if index < len(PROMPT_KEYS)
+            else str(index + 1)
+        )
+        result.append({"prompt_id": prompt_key, "llm_response": response})
+    return result
+
+
 def load_and_convert_from_json(json_file_path, output_file_path=None):
     """
     Loads JSON data from file and converts dictionary from format:
@@ -10,9 +32,9 @@ def load_and_convert_from_json(json_file_path, output_file_path=None):
     {
         "some_question": {
             "responses": [
-                {"prompt_id": "1", "llm_response": "response1"},
-                {"prompt_id": "2", "llm_response": "response2"},
-                {"prompt_id": "3", "llm_response": "response3"}
+                {"prompt_id": "Quote-only mode", "llm_response": "response1"},
+                {"prompt_id": "Context analysis mode", "llm_response": "response2"},
+                {"prompt_id": "Comprehensive analysis mode", "llm_response": "response3"}
             ]
         },
         ...
@@ -39,10 +61,7 @@ def load_and_convert_from_json(json_file_path, output_file_path=None):
 
     for question, responses in input_dict.items():
         converted_dict[question] = {
-            "responses": [
-                {"prompt_id": str(i + 1), "llm_response": response}
-                for i, response in enumerate(responses)
-            ]
+            "responses": _build_response_objects(responses)
         }
 
     # Write to output file if specified
@@ -85,9 +104,9 @@ def convert_dictionary_format(input_dict):
     {
         "some_question": {
             "responses": [
-                {"prompt_id": "1", "llm_response": "response1"},
-                {"prompt_id": "2", "llm_response": "response2"},
-                {"prompt_id": "3", "llm_response": "response3"}
+                {"prompt_id": "Quote-only mode", "llm_response": "response1"},
+                {"prompt_id": "Context analysis mode", "llm_response": "response2"},
+                {"prompt_id": "Comprehensive analysis mode", "llm_response": "response3"}
             ]
         },
         ...
@@ -97,10 +116,7 @@ def convert_dictionary_format(input_dict):
 
     for question, responses in input_dict.items():
         converted_dict[question] = {
-            "responses": [
-                {"prompt_id": str(i + 1), "llm_response": response}
-                for i, response in enumerate(responses)
-            ]
+            "responses": _build_response_objects(responses)
         }
 
     return converted_dict

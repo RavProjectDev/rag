@@ -18,6 +18,7 @@ from rag.app.services.llm import (
     get_mock_response,
     get_gpt_response,
 )
+from rag.app.services.prompts import PromptType
 
 
 class MockMetricsConnection(MetricsConnection):
@@ -395,12 +396,12 @@ def test_generate_prompt_structured_json_format():
         ),
     ]
     
-    prompt = generate_prompt(user_question, data, prompt_id="structured_json")
+    prompt = generate_prompt(user_question, data, prompt_id=PromptType.STRUCTURED_JSON)
     
     # Verify it uses the structured_json template
     assert "output ONLY a valid JSON object" in prompt.value
     assert "MOST RELEVANT quoted sources" in prompt.value
-    assert prompt.id == "structured_json"
+    assert prompt.id == PromptType.STRUCTURED_JSON.value
     
     # Verify JSON-formatted context entries with proper escaping
     # Entry 1: with start-end timestamp
