@@ -68,6 +68,7 @@ jobs:
             --cpu=1 \
             --min-instances=0 \
             --max-instances=10 \
+            --port=8080 \
             --timeout=300 \
             --set-env-vars="ENVIRONMENT=STG" \
             --set-secrets="OPENAI_API_KEY=OPENAI_API_KEY:latest" \
