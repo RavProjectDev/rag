@@ -11,7 +11,7 @@ env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   GCP_REGION: ${{ secrets.GCP_REGION }} # e.g., us-central1
   SERVICE_NAME: rag-api-prd
-  DOCKER_IMAGE: ravprojectdev/prd
+  DOCKER_IMAGE: docker.io/ravprojectdev/prd
 
 jobs:
   deploy:
