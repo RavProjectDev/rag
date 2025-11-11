@@ -1,85 +1,92 @@
-name: Deploy to EC2 PRD
+name: Deploy API to Google Cloud Run (Production)
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 env:
-  DOCKER_IMAGE: ravprojectdev/prd
-  CONTAINER_NAME: rag_container_prd
-  PORT: 8000
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  SERVICE_NAME: rag-api-prd
+  GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+  GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+  DOCKER_IMAGE: docker.io/ravprojectdev/rag
 
 jobs:
   deploy:
+    name: Build and Deploy to Cloud Run (Production)
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ env.GCP_SA_KEY }}
 
-    - name: Login to DockerHub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile
-        push: true
-        no-cache: true
-        tags: |
-          ${{ env.DOCKER_IMAGE }}:prd-latest
-          ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
-        platforms: linux/amd64
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Deploy to EC2
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_SSH_KEY }}
-        script: |
-          set -e
-
-          echo "Stopping old container..."
-          docker stop ${{ env.CONTAINER_NAME }} 2>/dev/null || true
-          docker rm ${{ env.CONTAINER_NAME }} 2>/dev/null || true
-          
-          echo "Pruning unused images..."
-          docker image prune -f
-          
-          echo "Pulling latest image..."
-          docker pull ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
-
-          echo "Setting up Google Cloud credentials..."
-          echo "${{ secrets.GCLOUD_KEY_JSON_B64 }}" | base64 -d > /tmp/gcloud-key.json
-          chmod 600 /tmp/gcloud-key.json
-
-          echo "Starting new container..."
-          docker run -d \
-            --name ${{ env.CONTAINER_NAME }} \
-            --restart unless-stopped \
-            --label environment=prd \
-            -v /tmp/gcloud-key.json:/rag/credentials/gcloud-key.json:ro \
-            -p ${{ env.PORT }}:8000 \
-            -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-            -e SBERT_API_URL="${{ secrets.SBERT_API_URL }}" \
-            -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
-            -e MONGODB_DB_NAME="${{ secrets.MONGODB_DB_NAME }}" \
-            -e MONGODB_VECTOR_COLLECTION="${{ secrets.MONGODB_VECTOR_COLLECTION }}" \
-            -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
-            -e GOOGLE_CLOUD_PROJECT_ID="${{ secrets.GOOGLE_CLOUD_PROJECT_ID }}" \
-            -e VERTEX_REGION="${{ secrets.VERTEX_REGION }}" \
-            -e GOOGLE_APPLICATION_CREDENTIALS="/rag/credentials/gcloud-key.json" \
-            -e ENVIORNMENT="PRD" \
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          no-cache: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:prd-latest
             ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          platforms: linux/amd64
 
-          echo "Verifying deployment..."
-          sleep 5
-          docker ps | grep ${{ env.CONTAINER_NAME }} && echo "✅ PRD container running on port ${{ env.PORT }}"
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.DOCKER_IMAGE }}:${{ github.sha }} \
+            --platform=managed \
+            --region=${{ env.GCP_REGION }} \
+            --service-account=${{ env.GCP_SERVICE_ACCOUNT }} \
+            --allow-unauthenticated \
+            --memory=4Gi \
+            --cpu=2 \
+            --min-instances=1 \
+            --max-instances=50 \
+            --timeout=300 \
+            --concurrency=80 \
+            --set-env-vars="ENVIRONMENT=PRD" \
+            --set-env-vars="PORT=8000" \
+            --set-secrets="OPENAI_API_KEY=OPENAI_API_KEY:latest" \
+            --set-secrets="MONGODB_URI=MONGODB_URI:latest" \
+            --set-secrets="MONGODB_DB_NAME=MONGODB_DB_NAME:latest" \
+            --set-secrets="MONGODB_VECTOR_COLLECTION=MONGODB_VECTOR_COLLECTION:latest" \
+            --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+            --set-secrets="GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest" \
+            --set-secrets="VERTEX_REGION=VERTEX_REGION:latest"
+
+      - name: Show service URL
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.GCP_REGION }} \
+            --format='value(status.url)')
+          echo "🚀 Production API deployed successfully!"
+          echo "Service URL: $SERVICE_URL"
+          echo "Health check: $SERVICE_URL/api/v1/health"
+          echo "API Documentation: $SERVICE_URL/docs"

@@ -12,6 +12,7 @@ env:
   GCP_REGION: ${{ secrets.GCP_REGION }} # e.g., us-central1
   SERVICE_NAME: rag-api-prd
   DOCKER_IMAGE: docker.io/ravprojectdev/prd
+  GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
 jobs:
   deploy:
@@ -70,6 +71,7 @@ jobs:
             --platform=managed \
             --region=${{ env.GCP_REGION }} \
             --allow-unauthenticated \
+            --service-account=${{ env.GCP_SERVICE_ACCOUNT }} \
             --memory=4Gi \
             --cpu=2 \
             --min-instances=1 \
