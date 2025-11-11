@@ -70,6 +70,7 @@ jobs:
             --min-instances=1 \
             --max-instances=50 \
             --timeout=300 \
+            --port=8080 \
             --concurrency=80 \
             --set-env-vars="ENVIRONMENT=PRD" \
             --set-secrets="OPENAI_API_KEY=OPENAI_API_KEY:latest" \
