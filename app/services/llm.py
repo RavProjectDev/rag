@@ -2,7 +2,7 @@ import asyncio
 import logging
 from contextlib import nullcontext
 from functools import lru_cache
-from typing import Union
+from typing import Union, Optional, Dict, Any
 
 from openai import (
     AsyncOpenAI,
@@ -45,6 +45,54 @@ def get_openai_client() -> AsyncOpenAI:
         raise LLMConnectionException("OpenAI API connection failed: {}".format(e))
 
 
+def get_chat_response_json_schema() -> Dict[str, Any]:
+    """
+    Returns the JSON schema for structured chat responses.
+    This schema enforces the structure expected by the chat endpoint.
+    """
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "chat_response",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "main_text": {
+                        "type": "string",
+                        "description": "A concise summary synthesizing the relevant extracted quotes"
+                    },
+                    "sources": {
+                        "type": "array",
+                        "description": "Array of relevant quoted sources from the context",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "slug": {
+                                    "type": "string",
+                                    "description": "The source document slug"
+                                },
+                                "timestamp": {
+                                    "type": ["string", "null"],
+                                    "description": "Timestamp in format 'start-end' or single value, or null"
+                                },
+                                "text": {
+                                    "type": "string",
+                                    "description": "A relevant quote or excerpt from the source document"
+                                }
+                            },
+                            "required": ["slug", "text"],
+                            "additionalProperties": False
+                        }
+                    }
+                },
+                "required": ["main_text", "sources"],
+                "additionalProperties": False
+            },
+            "strict": True
+        }
+    }
+
+
 # ---------------------------------------------------------------
 # Single-response LLM call
 # ---------------------------------------------------------------
@@ -54,9 +102,16 @@ async def get_llm_response(
     prompt: str,
     model: LLMModel = LLMModel.GPT_4,
     metrics_connection: MetricsConnection = None,
+    response_format: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
     Fetches a synchronous completion from the LLM.
+    
+    Args:
+        prompt: The prompt to send to the LLM
+        model: The LLM model to use
+        metrics_connection: Optional metrics connection for tracking
+        response_format: Optional response format for structured outputs (e.g., JSON schema)
     """
     data = {}
     cm = (
@@ -69,7 +124,7 @@ async def get_llm_response(
         if model == LLMModel.GPT_4:
             try:
                 response, metrics = await get_gpt_response(
-                    prompt=prompt, model=model.value
+                    prompt=prompt, model=model.value, response_format=response_format
                 )
             except Exception as e:
                 logging.error(f"Error in get_gpt_response: {e}")
@@ -91,8 +146,16 @@ async def get_llm_response(
 async def get_gpt_response(
     prompt: str,
     model: str,
+    response_format: Optional[Dict[str, Any]] = None,
 ) -> tuple[str, dict | None]:
-
+    """
+    Fetches a completion from GPT.
+    
+    Args:
+        prompt: The prompt to send to the LLM
+        model: The model name to use
+        response_format: Optional response format for structured outputs (e.g., JSON schema)
+    """
     try:
         client = get_openai_client()
         messages: list[
@@ -107,11 +170,17 @@ async def get_gpt_response(
                 content=prompt,
             ),
         ]
+        
+        create_kwargs = {
+            "model": model,
+            "messages": messages,
+        }
+        
+        if response_format is not None:
+            create_kwargs["response_format"] = response_format
+        
         try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-            )
+            response = await client.chat.completions.create(**create_kwargs)
         except OpenAIError as e:
             raise LLMBaseException(f"Failed to get data from OpenAI: {e}")
 
@@ -166,9 +235,16 @@ async def stream_llm_response(
     metrics_connection: MetricsConnection,
     prompt: str,
     model: str = "gpt-4",
+    response_format: Optional[Dict[str, Any]] = None,
 ):
     """
     Streams completion from the LLM as text chunks.
+    
+    Args:
+        metrics_connection: Metrics connection for tracking
+        prompt: The prompt to send to the LLM
+        model: The model name to use
+        response_format: Optional response format for structured outputs (e.g., JSON schema)
     """
     client = get_openai_client()
     messages = [
@@ -184,13 +260,18 @@ async def stream_llm_response(
     settings = get_settings()
 
     try:
+        create_kwargs = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+        }
+        
+        if response_format is not None:
+            create_kwargs["response_format"] = response_format
+        
         # Make the async streaming API call with timeout
         response = await asyncio.wait_for(
-            client.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=True,
-            ),
+            client.chat.completions.create(**create_kwargs),
             timeout=settings.external_api_timeout,
         )
 
@@ -249,7 +330,6 @@ async def stream_llm_response(
 def generate_prompt(
     user_question: str,
     data: list[DocumentModel],
-    max_tokens: int = 1500,
     prompt_id: PromptType = PromptType.LIGHT,
 ) -> Prompt:
     """
@@ -257,7 +337,7 @@ def generate_prompt(
     """
     logger = logging.getLogger(__name__)
     logger.info(
-        f"[PROMPT GENERATION] Starting prompt generation, num_docs={len(data)}, max_tokens={max_tokens}, prompt_id={prompt_id}"
+        f"[PROMPT GENERATION] Starting prompt generation, num_docs={len(data)}, prompt_id={prompt_id}"
     )
 
     resolved_prompt_id = resolve_prompt_key(prompt_id)
@@ -310,10 +390,6 @@ def generate_prompt(
             entry = f'"{quote}"\n(Source: slug: {doc.sanity_data.slug}, {metadata_str})'
 
         tokens = estimate_tokens(entry)
-
-        if token_count + tokens > max_tokens:
-            logger.info(f"[PROMPT GENERATION] Token limit reached. Processed {len(context_parts)} documents, ~{token_count} tokens")
-            break
 
         context_parts.append(entry)
         token_count += tokens
