@@ -45,11 +45,19 @@ def get_openai_client() -> AsyncOpenAI:
         raise LLMConnectionException("OpenAI API connection failed: {}".format(e))
 
 
-def get_chat_response_json_schema() -> Dict[str, Any]:
+def get_chat_response_json_schema(require_timestamp: bool = False) -> Dict[str, Any]:
     """
     Returns the JSON schema for structured chat responses.
     This schema enforces the structure expected by the chat endpoint.
+    
+    Args:
+        require_timestamp: If True, timestamp will be required in the schema.
+                          If False, timestamp will be optional.
     """
+    source_required = ["slug", "text"]
+    if require_timestamp:
+        source_required.append("timestamp")
+    
     return {
         "type": "json_schema",
         "json_schema": {
@@ -80,7 +88,7 @@ def get_chat_response_json_schema() -> Dict[str, Any]:
                                     "description": "A relevant quote or excerpt from the source document"
                                 }
                             },
-                            "required": ["slug", "text"],
+                            "required": source_required,
                             "additionalProperties": False
                         }
                     }
@@ -88,7 +96,7 @@ def get_chat_response_json_schema() -> Dict[str, Any]:
                 "required": ["main_text", "sources"],
                 "additionalProperties": False
             },
-            "strict": True
+            "strict": False
         }
     }
 

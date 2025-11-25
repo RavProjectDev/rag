@@ -187,8 +187,13 @@ async def handler(
         )
         if chat_request.type_of_request == TypeOfRequest.STREAM:
             # Use schema enforcement for STRUCTURED_JSON prompts
+            # Check if any documents have timestamps to determine if timestamp should be required
+            has_timestamps = any(
+                item.metadata.time_start is not None or item.metadata.time_end is not None
+                for item in transcript_data
+            )
             response_format = (
-                get_chat_response_json_schema()
+                get_chat_response_json_schema(require_timestamp=has_timestamps)
                 if prompt.id == PromptType.STRUCTURED_JSON.value
                 else None
             )
@@ -214,8 +219,13 @@ async def handler(
                 logger = logging.getLogger(__name__)
                 
                 # Use schema enforcement for STRUCTURED_JSON prompts
+                # Check if any documents have timestamps to determine if timestamp should be required
+                has_timestamps = any(
+                    item.metadata.time_start is not None or item.metadata.time_end is not None
+                    for item in transcript_data
+                )
                 response_format = (
-                    get_chat_response_json_schema()
+                    get_chat_response_json_schema(require_timestamp=has_timestamps)
                     if prompt.id == PromptType.STRUCTURED_JSON.value
                     else None
                 )
