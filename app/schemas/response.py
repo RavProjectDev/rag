@@ -28,6 +28,15 @@ class ChatResponse(BaseModel):
     sources: list[SourceItem]
 
 
+class RetrieveDocumentsResponse(BaseModel):
+    request_id: str
+    cleaned_question: str
+    requested_top_k: int
+    documents: list[DocumentModel]
+    transcript_data: list[TranscriptData]
+    message: Optional[str] = None
+
+
 class FormFullResponse(BaseModel):
     responses: list[ChatResponse]
 

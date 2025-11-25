@@ -27,6 +27,24 @@ class ChatRequest(BaseModel):
         return v
 
 
+class RetrieveDocumentsRequest(BaseModel):
+    question: str
+    name_spaces: list[str] | None = None
+    top_k: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        description="Number of top documents to return (1-50).",
+    )
+
+    @classmethod
+    @field_validator("question")
+    def question_validator(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("question cannot be empty")
+        return v
+
+
 class FormRequest(BaseModel):
     question: str
     prompt_type: PromptType = Field(

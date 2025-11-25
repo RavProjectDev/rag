@@ -71,12 +71,15 @@ def _get_embedding_model() -> TextEmbeddingModel:
     return TextEmbeddingModel.from_pretrained(config.model_name)
 
 
-async def gemini_embedding(text_data: str) -> List[float]:
+async def gemini_embedding(text_data: str, task_type: str = "RETRIEVAL_DOCUMENT") -> List[float]:
     """
     Generate embeddings using Gemini model.
 
     Args:
         text_data: Text to generate embeddings for
+        task_type: The task type for Gemini embeddings. Options:
+                  - "RETRIEVAL_QUERY": For user queries/questions
+                  - "RETRIEVAL_DOCUMENT": For documents being indexed
 
     Returns:
         List of float values representing the embedding
@@ -87,7 +90,7 @@ async def gemini_embedding(text_data: str) -> List[float]:
         EmbeddingException: For other unexpected errors
     """
     logger = logging.getLogger(__name__)
-    logger.info(f"[EMBEDDING] Starting Gemini embedding generation, text_length={len(text_data)}")
+    logger.info(f"[EMBEDDING] Starting Gemini embedding generation, text_length={len(text_data)}, task_type={task_type}")
     
     try:
         _initialize_vertexai()
@@ -100,7 +103,7 @@ async def gemini_embedding(text_data: str) -> List[float]:
     config = _get_embedding_service_config()
     logger.info(f"[EMBEDDING] Using model={config.model_name}, project={config.project_id}, region={config.region}, timeout={config.timeout}s")
 
-    text_input = TextEmbeddingInput(text=text_data, task_type=config.default_task)
+    text_input = TextEmbeddingInput(text=text_data, task_type=task_type)
 
     def call_model():
         return model.get_embeddings(
@@ -148,6 +151,7 @@ def generate_mock_embedding(text: str) -> List[float]:
 async def generate_embedding(
     text: str,
     configuration: EmbeddingConfiguration,
+    task_type: str = "RETRIEVAL_DOCUMENT",
 ) -> Embedding:
     """
     Generate embeddings based on the specified configuration.
@@ -155,6 +159,9 @@ async def generate_embedding(
     Args:
         text: Text to generate embeddings for
         configuration: Embedding configuration to use
+        task_type: The task type for Gemini embeddings. Options:
+                  - "RETRIEVAL_QUERY": For user queries/questions
+                  - "RETRIEVAL_DOCUMENT": For documents being indexed (default)
 
     Returns:
         Embedding object containing text and vector
@@ -164,7 +171,7 @@ async def generate_embedding(
         EmbeddingException: For other embedding-related errors
     """
     logger = logging.getLogger(__name__)
-    logger.info(f"[EMBEDDING SERVICE] Starting embedding generation with configuration={configuration.name if hasattr(configuration, 'name') else configuration}")
+    logger.info(f"[EMBEDDING SERVICE] Starting embedding generation with configuration={configuration.name if hasattr(configuration, 'name') else configuration}, task_type={task_type}")
     
     if not isinstance(configuration, EmbeddingConfiguration):
         logger.error(f"[EMBEDDING SERVICE ERROR] Invalid configuration type: {type(configuration)}")
@@ -182,7 +189,7 @@ async def generate_embedding(
     try:
         if configuration == EmbeddingConfiguration.GEMINI:
             logger.info(f"[EMBEDDING SERVICE] Using Gemini configuration")
-            vector = await gemini_embedding(text)
+            vector = await gemini_embedding(text, task_type=task_type)
         elif configuration == EmbeddingConfiguration.MOCK:
             logger.info(f"[EMBEDDING SERVICE] Using Mock configuration")
             vector = generate_mock_embedding(text)

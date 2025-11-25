@@ -60,6 +60,7 @@ async def embedding_helper(
         data: Embedding = await generate_embedding(
             text=chunk.text_to_embed,
             configuration=configuration,
+            task_type="RETRIEVAL_DOCUMENT",  # Document being indexed
         )
         embeddings.append(
             VectorEmbedding(
