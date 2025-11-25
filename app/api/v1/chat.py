@@ -40,7 +40,12 @@ from rag.app.schemas.response import (
     ErrorResponse,
 )
 from rag.app.services.embedding import generate_embedding
-from rag.app.services.llm import stream_llm_response, generate_prompt, get_llm_response
+from rag.app.services.llm import (
+    stream_llm_response,
+    generate_prompt,
+    get_llm_response,
+    get_chat_response_json_schema,
+)
 from rag.app.services.preprocess.user_input import pre_process_user_query
 from rag.app.services.prompts import PromptType
 
@@ -181,6 +186,17 @@ async def handler(
             timeout=settings.external_api_timeout,
         )
         if chat_request.type_of_request == TypeOfRequest.STREAM:
+            # Use schema enforcement for STRUCTURED_JSON prompts
+            # Check if any documents have timestamps to determine if timestamp should be required
+            has_timestamps = any(
+                item.metadata.time_start is not None or item.metadata.time_end is not None
+                for item in transcript_data
+            )
+            response_format = (
+                get_chat_response_json_schema(require_timestamp=has_timestamps)
+                if prompt.id == PromptType.STRUCTURED_JSON.value
+                else None
+            )
 
             async def event_generator():
                 """Asynchronous generator for Server-Sent Events (SSE)."""
@@ -190,6 +206,7 @@ async def handler(
                     metrics_connection=metrics_conn,
                     prompt=prompt.value,
                     model=llm_configuration.value,
+                    response_format=response_format,
                 ):
                     yield f"data: {json.dumps({'data': chunk})}\n\n"
                 yield "data: [DONE]\n\n"
@@ -201,10 +218,23 @@ async def handler(
                 import logging
                 logger = logging.getLogger(__name__)
                 
+                # Use schema enforcement for STRUCTURED_JSON prompts
+                # Check if any documents have timestamps to determine if timestamp should be required
+                has_timestamps = any(
+                    item.metadata.time_start is not None or item.metadata.time_end is not None
+                    for item in transcript_data
+                )
+                response_format = (
+                    get_chat_response_json_schema(require_timestamp=has_timestamps)
+                    if prompt.id == PromptType.STRUCTURED_JSON.value
+                    else None
+                )
+                
                 llm_response = await get_llm_response(
                     metrics_connection=metrics_conn,
                     prompt=prompt.value,
                     model=llm_configuration,
+                    response_format=response_format,
                 )
                 # If we used the structured JSON prompt, validate JSON and return it
                 if prompt.id == PromptType.STRUCTURED_JSON.value:
