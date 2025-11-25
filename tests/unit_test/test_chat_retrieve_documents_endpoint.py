@@ -148,3 +148,4 @@ def test_retrieve_documents_handles_no_document_found(client_factory):
     assert body["transcript_data"] == []
     assert body["message"] == NoDocumentFoundException.message_to_ui
 
+
