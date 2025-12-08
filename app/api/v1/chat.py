@@ -48,6 +48,7 @@ from rag.app.services.llm import (
 )
 from rag.app.services.preprocess.user_input import pre_process_user_query
 from rag.app.services.prompts import PromptType
+from rag.app.services.auth import verify_jwt_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ logger = logging.getLogger(__name__)
 )
 async def retrieve_documents_handler(
     request: RetrieveDocumentsRequest,
+    user_id: str = Depends(verify_jwt_token),
     embedding_conn: EmbeddingConnection = Depends(get_embedding_conn),
     metrics_conn: MetricsConnection = Depends(get_metrics_conn),
     embedding_configuration: EmbeddingConfiguration = Depends(
@@ -145,6 +147,7 @@ async def retrieve_documents_handler(
 )
 async def handler(
     chat_request: ChatRequest,
+    user_id: str = Depends(verify_jwt_token),
     embedding_conn: EmbeddingConnection = Depends(get_embedding_conn),
     metrics_conn: MetricsConnection = Depends(get_metrics_conn),
     embedding_configuration: EmbeddingConfiguration = Depends(

@@ -9,6 +9,7 @@ def patch_settings(monkeypatch):
     from rag.app.core.config import (
         Settings,
         Environment,
+        AuthMode,
         EmbeddingConfiguration,
         LLMModel,
     )
@@ -30,8 +31,20 @@ def patch_settings(monkeypatch):
         environment=Environment.TEST,
         embedding_configuration=EmbeddingConfiguration.MOCK,
         llm_configuration=LLMModel.MOCK,
+        auth_mode=AuthMode.DEV,  # Tests run in dev mode (no auth required)
+        _env_file=None,  # Don't read from .env file during tests
     )
 
+    # Clear the lru_cache for get_settings to ensure fresh settings
+    config.get_settings.cache_clear()
+    
+    # Also clear cache for get_openai_client if it exists
+    try:
+        from rag.app.services.llm import get_openai_client
+        get_openai_client.cache_clear()
+    except (ImportError, AttributeError):
+        pass
+    
     monkeypatch.setattr(config, "get_settings", lambda: test_settings)
     monkeypatch.setattr("rag.app.db.mongodb_connection.get_settings", lambda: test_settings)
     monkeypatch.setattr("rag.app.services.embedding.get_settings", lambda: test_settings)
