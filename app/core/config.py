@@ -1,6 +1,7 @@
 # config.py
 from enum import Enum
 
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 from rag.app.schemas.data import EmbeddingConfiguration, LLMModel
 from functools import lru_cache
@@ -35,8 +36,13 @@ class Settings(BaseSettings):
     max_retry_attempts: int = 3  # Maximum number of retry attempts
     retry_delay_seconds: float = 1.0  # Initial delay between retries
     retry_backoff_multiplier: float = 2.0  # Exponential backoff multiplier
-    model_config = {"env_file": ".env"}
     google_application_credentials: str | None = None
+    # Supabase configuration (optional)
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+    auth_mode: str | None = None
+    
+    model_config = ConfigDict(env_file=".env", extra="ignore")
 
 
 @lru_cache()
