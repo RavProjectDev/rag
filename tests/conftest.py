@@ -49,3 +49,4 @@ def patch_settings(monkeypatch):
     monkeypatch.setattr("rag.app.db.mongodb_connection.get_settings", lambda: test_settings)
     monkeypatch.setattr("rag.app.services.embedding.get_settings", lambda: test_settings)
     monkeypatch.setattr("rag.app.services.llm.get_settings", lambda: test_settings)
+    monkeypatch.setattr("rag.app.services.auth.get_settings", lambda: test_settings)

@@ -33,8 +33,9 @@ async def verify_jwt_token(
     
     # Dev mode: skip authentication
     if settings.auth_mode == AuthMode.DEV:
-        logger.info("Auth mode is DEV - skipping authentication")
-        return "dev-user"
+        user_id = "dev-user"
+        logger.info(f"User logged in (DEV mode): user_id={user_id}")
+        return user_id
     
     # PRD mode: require authentication
     if not credentials:
@@ -67,7 +68,7 @@ async def verify_jwt_token(
         decoded_token = jwt.decode(
             token,
             signing_key.key,
-            algorithms=["RS256"],
+            algorithms=["ES256"],  # ECC P-256 uses ES256 (ECDSA with SHA-256)
             audience="authenticated",  # Supabase default audience
             options={"verify_exp": True, "verify_aud": True}
         )
@@ -82,7 +83,7 @@ async def verify_jwt_token(
                 detail={"code": "invalid_token", "message": "Token missing user_id"}
             )
         
-        logger.info(f"Successfully authenticated user: {user_id}")
+        logger.info(f"User logged in (PRD mode): user_id={user_id}")
         return user_id
         
     except jwt.ExpiredSignatureError:
