@@ -73,14 +73,19 @@ jobs:
             --port=8080 \
             --concurrency=80 \
             --set-env-vars="ENVIRONMENT=PRD" \
-            --set-secrets="OPENAI_API_KEY=OPENAI_API_KEY:latest" \
-            --set-secrets="MONGODB_URI=MONGODB_URI:latest" \
-            --set-secrets="MONGODB_DB_NAME=MONGODB_DB_NAME:latest" \
-            --set-secrets="MONGODB_VECTOR_COLLECTION=MONGODB_VECTOR_COLLECTION:latest" \
-            --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
-            --set-secrets="GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest" \
-            --set-secrets="VERTEX_REGION=VERTEX_REGION:latest"
-
+            -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            -e SBERT_API_URL="${{ secrets.SBERT_API_URL }}" \
+            -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+            -e MONGODB_DB_NAME="${{ secrets.MONGODB_DB_NAME }}" \
+            -e MONGODB_VECTOR_COLLECTION="${{ secrets.MONGODB_VECTOR_COLLECTION }}" \
+            -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            -e GOOGLE_CLOUD_PROJECT_ID="${{ secrets.GOOGLE_CLOUD_PROJECT_ID }}" \
+            -e VERTEX_REGION="${{ secrets.VERTEX_REGION }}" \
+            -e GOOGLE_APPLICATION_CREDENTIALS="/rag/credentials/gcloud-key.json" \
+            -e ENVIORNMENT="STG" \
+            -e AUTH_MODE="prd" \
+            -e SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
       - name: Show service URL
         run: |
           SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
