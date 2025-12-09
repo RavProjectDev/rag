@@ -13,6 +13,7 @@ from rag.app.dependencies import (
 from rag.app.exceptions.db import NoDocumentFoundException
 from rag.app.models.data import DocumentModel, Metadata, SanityData
 from rag.app.schemas.data import EmbeddingConfiguration, LLMModel
+from rag.app.services.auth import verify_jwt_token
 
 
 def build_document(identifier: int, score: float) -> DocumentModel:
@@ -92,6 +93,10 @@ def client_factory():
             lambda: EmbeddingConfiguration.MOCK
         )
         app.dependency_overrides[get_llm_configuration] = lambda: LLMModel.MOCK
+        # Override auth to return dev-user (tests run in dev mode)
+        async def mock_verify_jwt_token():
+            return "dev-user"
+        app.dependency_overrides[verify_jwt_token] = mock_verify_jwt_token
 
         client = TestClient(app)
         return client, embedding_conn, metrics_conn
@@ -147,5 +152,6 @@ def test_retrieve_documents_handles_no_document_found(client_factory):
     assert body["documents"] == []
     assert body["transcript_data"] == []
     assert body["message"] == NoDocumentFoundException.message_to_ui
+
 
 

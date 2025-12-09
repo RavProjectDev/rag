@@ -15,7 +15,17 @@ class Environment(Enum):
     TEST = "TEST"
 
 
+class AuthMode(Enum):
+    DEV = "dev"
+    PRD = "prd"
+
+
 class Settings(BaseSettings):
+    model_config = ConfigDict(
+        env_file=".env",
+        extra="ignore",  # Ignore extra environment variables not defined in the model
+    )
+    
     openai_api_key: str
     mongodb_uri: str
     mongodb_db_name: str
@@ -37,12 +47,8 @@ class Settings(BaseSettings):
     retry_delay_seconds: float = 1.0  # Initial delay between retries
     retry_backoff_multiplier: float = 2.0  # Exponential backoff multiplier
     google_application_credentials: str | None = None
-    # Supabase configuration (optional)
-    supabase_url: str | None = None
-    supabase_service_role_key: str | None = None
-    auth_mode: str | None = None
-    
-    model_config = ConfigDict(env_file=".env", extra="ignore")
+    supabase_url: str | None = None  # Supabase project URL for JWKS
+    auth_mode: AuthMode = AuthMode.DEV  # Authentication mode: dev (no auth) or prd (requires auth)
 
 
 @lru_cache()
