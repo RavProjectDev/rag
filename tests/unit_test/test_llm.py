@@ -281,7 +281,7 @@ def test_generate_prompt_with_context():
             score=0.8,
         ),
     ]
-    prompt = generate_prompt(user_question, data, max_tokens=1000)
+    prompt = generate_prompt(user_question, data)
     assert (
         '"Modernity must be approached with critical engagement."\n(Source: slug: lonely-man, chunk_size: 100, time_start: 00:00, time_end: 01:00, name_space: lecture)'
         in prompt.value
@@ -293,7 +293,8 @@ def test_generate_prompt_with_context():
     assert user_question in prompt.value
 
 
-def test_generate_prompt_token_limit():
+def test_generate_prompt_no_token_limit():
+    """Test that all documents are included when there's no token limit."""
     user_question = "Test question"
     data = [
         DocumentModel(
@@ -330,10 +331,10 @@ def test_generate_prompt_token_limit():
             score=0.8,
         ),
     ]
-    prompt = generate_prompt(user_question, data, max_tokens=100)
+    prompt = generate_prompt(user_question, data)
     assert f'{"A" * 50}' in prompt.value
     assert "test-source" in prompt.value
-    assert "test-source-2" not in prompt.value
+    assert "test-source-2" in prompt.value
 
 
 def test_generate_prompt_structured_json_format():
