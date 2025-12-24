@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     google_application_credentials: str | None = None
     supabase_url: str | None = None  # Supabase project URL for JWKS
     auth_mode: AuthMode = AuthMode.DEV  # Authentication mode: dev (no auth) or prd (requires auth)
+    dev_outputs: bool = False  # When enabled, saves LLM prompts to /dev_outputs folder
 
 
 @lru_cache()

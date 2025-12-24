@@ -10,6 +10,7 @@ class PromptType(str, Enum):
     - MODERATE: Analysis with themes and interpretations
     - COMPREHENSIVE: Deep analysis with frameworks and synthesis
     - STRUCTURED_JSON: JSON output format
+    - NUMBERED_SOURCES: Numbered documents with JSON response containing main_summary and sources array
     """
     
     MINIMAL = "minimal_intervention"
@@ -17,6 +18,7 @@ class PromptType(str, Enum):
     MODERATE = "moderate_intervention"
     COMPREHENSIVE = "comprehensive_intervention"
     STRUCTURED_JSON = "production"
+    NUMBERED_SOURCES = "numbered_sources"
 
 
 PROMPTS = {
@@ -196,6 +198,54 @@ IMPORTANT NOTES:
 - You may paraphrase for clarity and client understanding, but stay faithful to the Rav's meaning
 - The same slug/timestamp can appear MULTIPLE times if there are multiple relevant quotes from that source
 - Do NOT include sources with no relevant content - skip them entirely""",
+    PromptType.NUMBERED_SOURCES.value: """You are a Rav Soloveitchik expert assistant. Your task is to answer the user's question and identify which numbered context documents are relevant.
+
+# Context
+The following documents are numbered for your reference:
+{context}
+
+# User Question
+{user_question}
+
+# Instructions
+1. **Answer the Question**: Provide a comprehensive summary that answers the user's question based on the numbered context documents above.
+2. **Identify Relevant Documents**: List the numbers (e.g., [1], [2], [3]) of ALL context documents that are relevant to answering the question.
+3. **Output Format**: Output ONLY a valid JSON object with no additional text.
+
+# Output Requirements (CRITICAL)
+1. Output ONLY a single valid JSON object. No prose, no Markdown, no extra text before or after.
+2. JSON schema (exact keys):
+{{
+  "main_summary": string,
+  "sources": [integer, integer, ...]
+}}
+3. MAIN_SUMMARY:
+   - Provide a comprehensive summary (3-6 sentences) that answers the user's question
+   - Base your answer ONLY on the numbered context documents provided
+   - Synthesize information from multiple relevant documents when applicable
+4. SOURCES:
+   - List the document numbers (as integers) of ALL relevant context documents
+   - Include a document number if ANY part of it is relevant to answering the question
+   - The numbers should correspond to the [1], [2], [3] labels in the context
+   - Return an empty array [] if no documents are relevant
+   - Example: If documents [1], [3], and [5] are relevant, return [1, 3, 5]
+5. STRICT ADHERENCE:
+   - Use ONLY the provided context. Do not invent information.
+   - Only reference document numbers that actually exist in the context
+   - Ensure all numbers in the sources array are valid integers corresponding to context document numbers
+6. Ensure all strings use double quotes and the JSON is syntactically valid.
+7. If context is insufficient, return: {{"main_summary": "The provided context does not contain sufficient information to answer this question.", "sources": []}}
+
+# Example Output Structure:
+{{
+  "main_summary": "Based on the provided context, [your comprehensive answer to the question that synthesizes information from the relevant numbered documents].",
+  "sources": [1, 3, 5]
+}}
+
+IMPORTANT NOTES:
+- The sources array should contain integers (not strings) representing document numbers
+- Include ALL documents that contribute to answering the question, even if only partially relevant
+- The main_summary should be a coherent answer, not just a list of document references""",
 }
 
 

@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+from datetime import datetime
 from contextlib import nullcontext
 from functools import lru_cache
 from typing import Union, Optional, Dict, Any
@@ -101,6 +103,104 @@ def get_chat_response_json_schema(require_timestamp: bool = False) -> Dict[str, 
     }
 
 
+def get_numbered_sources_json_schema() -> Dict[str, Any]:
+    """
+    Returns the JSON schema for numbered sources responses.
+    This schema enforces the structure with main_summary and sources array of integers.
+    """
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "numbered_sources_response",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "main_summary": {
+                        "type": "string",
+                        "description": "A comprehensive summary that answers the user's question"
+                    },
+                    "sources": {
+                        "type": "array",
+                        "description": "Array of document numbers (integers) that are relevant to answering the question",
+                        "items": {
+                            "type": "integer",
+                            "description": "Document number from the context (e.g., 1, 2, 3)"
+                        }
+                    }
+                },
+                "required": ["main_summary", "sources"],
+                "additionalProperties": False
+            },
+            "strict": False
+        }
+    }
+
+
+def save_prompt_to_dev_outputs(
+    prompt: str, 
+    request_id: Optional[str] = None, 
+    model: Optional[str] = None,
+    response: Optional[str] = None
+) -> str:
+    """
+    Saves the LLM prompt (and optionally response) to dev_outputs folder when dev_outputs mode is enabled.
+    
+    Args:
+        prompt: The prompt text to save
+        request_id: Optional request ID for filename
+        model: Optional model name for filename
+        response: Optional response text to save
+    
+    Returns:
+        The filepath where the data was saved (or empty string if not saved)
+    """
+    settings = get_settings()
+    if not settings.dev_outputs:
+        return ""
+    
+    # Create dev_outputs directory if it doesn't exist (relative to project root)
+    dev_outputs_dir = "dev_outputs"
+    try:
+        os.makedirs(dev_outputs_dir, exist_ok=True)
+    except OSError as e:
+        logging.error(f"Failed to create dev_outputs directory: {e}")
+        return ""
+    
+    # Generate filename with timestamp and request_id
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    request_id_short = request_id[:8] if request_id else "unknown"
+    
+    if model:
+        # Sanitize model name for filename (remove special characters)
+        model_safe = model.replace("/", "_").replace(":", "_")
+        filename = f"{timestamp}_{model_safe}_{request_id_short}.txt"
+    else:
+        filename = f"{timestamp}_{request_id_short}.txt"
+    
+    filepath = os.path.join(dev_outputs_dir, filename)
+    
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(f"Request ID: {request_id or 'N/A'}\n")
+            f.write(f"Model: {model or 'N/A'}\n")
+            f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+            f.write(f"{'='*80}\n\n")
+            f.write("PROMPT:\n")
+            f.write(f"{'='*80}\n")
+            f.write(prompt)
+            f.write(f"\n\n{'='*80}\n")
+            if response is not None:
+                f.write("RESPONSE:\n")
+                f.write(f"{'='*80}\n")
+                f.write(response)
+                f.write(f"\n{'='*80}\n")
+        logging.info(f"[DEV_OUTPUTS] Saved prompt{' and response' if response else ''} to {filepath}")
+        return filepath
+    except Exception as e:
+        logging.error(f"[DEV_OUTPUTS] Failed to save to {filepath}: {e}")
+        return ""
+
+
 # ---------------------------------------------------------------
 # Single-response LLM call
 # ---------------------------------------------------------------
@@ -111,6 +211,7 @@ async def get_llm_response(
     model: LLMModel = LLMModel.GPT_4,
     metrics_connection: MetricsConnection = None,
     response_format: Optional[Dict[str, Any]] = None,
+    request_id: Optional[str] = None,
 ) -> str:
     """
     Fetches a synchronous completion from the LLM.
@@ -120,7 +221,12 @@ async def get_llm_response(
         model: The LLM model to use
         metrics_connection: Optional metrics connection for tracking
         response_format: Optional response format for structured outputs (e.g., JSON schema)
+        request_id: Optional request ID for dev_outputs tracking
     """
+    # Save prompt to dev_outputs if enabled (will be updated with response later)
+    model_name = model.value if hasattr(model, 'value') else str(model) if model else None
+    filepath = save_prompt_to_dev_outputs(prompt, request_id=request_id, model=model_name)
+    
     data = {}
     cm = (
         metrics_connection.timed(metric_type="LLM", data=data)
@@ -143,6 +249,19 @@ async def get_llm_response(
             raise ValueError(f"Unsupported model: {model}")
 
     data.update(metrics or {})
+    
+    # Update dev_outputs file with response if enabled
+    if filepath:
+        try:
+            with open(filepath, "a", encoding="utf-8") as f:
+                f.write(f"\n\n{'='*80}\n")
+                f.write("RESPONSE:\n")
+                f.write(f"{'='*80}\n")
+                f.write(response)
+                f.write(f"\n{'='*80}\n")
+        except Exception as e:
+            logging.error(f"[DEV_OUTPUTS] Failed to append response to {filepath}: {e}")
+    
     return response
 
 
@@ -244,6 +363,7 @@ async def stream_llm_response(
     prompt: str,
     model: str = "gpt-4",
     response_format: Optional[Dict[str, Any]] = None,
+    request_id: Optional[str] = None,
 ):
     """
     Streams completion from the LLM as text chunks.
@@ -253,7 +373,11 @@ async def stream_llm_response(
         prompt: The prompt to send to the LLM
         model: The model name to use
         response_format: Optional response format for structured outputs (e.g., JSON schema)
+        request_id: Optional request ID for dev_outputs tracking
     """
+    # Save prompt to dev_outputs if enabled (will be updated with response later)
+    filepath = save_prompt_to_dev_outputs(prompt, request_id=request_id, model=model)
+    
     client = get_openai_client()
     messages = [
         ChatCompletionSystemMessageParam(
@@ -283,6 +407,9 @@ async def stream_llm_response(
             timeout=settings.external_api_timeout,
         )
 
+        # Collect all chunks for dev_outputs
+        collected_response = []
+
         async def _consume_stream():
             async for chunk in response:
                 try:
@@ -291,10 +418,26 @@ async def stream_llm_response(
                         return
                     delta = chunk.choices[0].delta
                     if delta.content:
-                        yield delta.content
+                        content = delta.content
+                        collected_response.append(content)
+                        yield content
                 except (AttributeError, IndexError):
                     yield "Error: Invalid chunk structure"
                     return
+            
+            # Save complete response to dev_outputs if enabled
+            if filepath:
+                try:
+                    full_response = "".join(collected_response)
+                    with open(filepath, "a", encoding="utf-8") as f:
+                        f.write(f"\n\n{'='*80}\n")
+                        f.write("RESPONSE:\n")
+                        f.write(f"{'='*80}\n")
+                        f.write(full_response)
+                        f.write(f"\n{'='*80}\n")
+                except Exception as e:
+                    logging.error(f"[DEV_OUTPUTS] Failed to append response to {filepath}: {e}")
+            
             yield "[DONE]"
 
         # Stream with metrics and per-token timeout
@@ -356,7 +499,7 @@ def generate_prompt(
     context_parts = []
     token_count = 0
 
-    for doc in data:
+    for idx, doc in enumerate(data, start=1):
         quote = doc.text.strip()
 
         # Build timestamp string from metadata if available
@@ -388,6 +531,16 @@ def generate_prompt(
                 f"[PROMPT GENERATION] Added source: slug={doc.sanity_data.slug}, "
                 f"timestamp={timestamp}, text_length={len(quote)} chars, "
                 f"text_preview={quote[:100]}..."
+            )
+        elif resolved_prompt_id == PromptType.NUMBERED_SOURCES.value:
+            # Numbered format for NUMBERED_SOURCES prompt type
+            metadata_str = ", ".join(
+                f"{k}: {v}" for k, v in doc.metadata.model_dump().items()
+            )
+            entry = f"[{idx}]\n\"{quote}\"\n(Source: slug: {doc.sanity_data.slug}, {metadata_str})"
+            logger.debug(
+                f"[PROMPT GENERATION] Added numbered source [{idx}]: slug={doc.sanity_data.slug}, "
+                f"timestamp={timestamp}, text_length={len(quote)} chars"
             )
         else:
             # Original human-readable entry with metadata dump

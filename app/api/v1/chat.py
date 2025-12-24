@@ -3,7 +3,7 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from starlette import status
 
@@ -45,8 +45,9 @@ from rag.app.services.llm import (
     generate_prompt,
     get_llm_response,
     get_chat_response_json_schema,
+    get_numbered_sources_json_schema,
 )
-from rag.app.services.preprocess.user_input import pre_process_user_query
+from rag.app.services.preprocess.user_input import pre_process_user_query, remove_last_sentence
 from rag.app.services.prompts import PromptType
 from rag.app.services.auth import verify_jwt_token
 
@@ -147,6 +148,7 @@ async def retrieve_documents_handler(
 )
 async def handler(
     chat_request: ChatRequest,
+    request: Request,
     user_id: str = Depends(verify_jwt_token),
     embedding_conn: EmbeddingConnection = Depends(get_embedding_conn),
     metrics_conn: MetricsConnection = Depends(get_metrics_conn),
@@ -172,12 +174,16 @@ async def handler(
         HTTPException: For validation, database, embedding, LLM, or unexpected errors.
     """
     settings = get_settings()
+    
+    # Get request_id from request state (set by middleware)
+    request_id = getattr(request.state, "request_id", None)
 
     try:
         # Generate prompt and metadata
         transcript_data: list[TranscriptData]
+        documents: list[DocumentModel]
 
-        prompt, transcript_data = await asyncio.wait_for(
+        prompt, transcript_data, documents = await asyncio.wait_for(
             generate(
                 user_question=chat_request.question,
                 embedding_configuration=embedding_configuration,
@@ -189,17 +195,18 @@ async def handler(
             timeout=settings.external_api_timeout,
         )
         if chat_request.type_of_request == TypeOfRequest.STREAM:
-            # Use schema enforcement for STRUCTURED_JSON prompts
-            # Check if any documents have timestamps to determine if timestamp should be required
-            has_timestamps = any(
-                item.metadata.time_start is not None or item.metadata.time_end is not None
-                for item in transcript_data
-            )
-            response_format = (
-                get_chat_response_json_schema(require_timestamp=has_timestamps)
-                if prompt.id == PromptType.STRUCTURED_JSON.value
-                else None
-            )
+            # Use schema enforcement for STRUCTURED_JSON and NUMBERED_SOURCES prompts
+            if prompt.id == PromptType.STRUCTURED_JSON.value:
+                # Check if any documents have timestamps to determine if timestamp should be required
+                has_timestamps = any(
+                    item.metadata.time_start is not None or item.metadata.time_end is not None
+                    for item in transcript_data
+                )
+                response_format = get_chat_response_json_schema(require_timestamp=has_timestamps)
+            elif prompt.id == PromptType.NUMBERED_SOURCES.value:
+                response_format = get_numbered_sources_json_schema()
+            else:
+                response_format = None
 
             async def event_generator():
                 """Asynchronous generator for Server-Sent Events (SSE)."""
@@ -210,6 +217,7 @@ async def handler(
                     prompt=prompt.value,
                     model=llm_configuration.value,
                     response_format=response_format,
+                    request_id=request_id,
                 ):
                     yield f"data: {json.dumps({'data': chunk})}\n\n"
                 yield "data: [DONE]\n\n"
@@ -221,23 +229,25 @@ async def handler(
                 import logging
                 logger = logging.getLogger(__name__)
                 
-                # Use schema enforcement for STRUCTURED_JSON prompts
-                # Check if any documents have timestamps to determine if timestamp should be required
-                has_timestamps = any(
-                    item.metadata.time_start is not None or item.metadata.time_end is not None
-                    for item in transcript_data
-                )
-                response_format = (
-                    get_chat_response_json_schema(require_timestamp=has_timestamps)
-                    if prompt.id == PromptType.STRUCTURED_JSON.value
-                    else None
-                )
+                # Use schema enforcement for STRUCTURED_JSON and NUMBERED_SOURCES prompts
+                if prompt.id == PromptType.STRUCTURED_JSON.value:
+                    # Check if any documents have timestamps to determine if timestamp should be required
+                    has_timestamps = any(
+                        item.metadata.time_start is not None or item.metadata.time_end is not None
+                        for item in transcript_data
+                    )
+                    response_format = get_chat_response_json_schema(require_timestamp=has_timestamps)
+                elif prompt.id == PromptType.NUMBERED_SOURCES.value:
+                    response_format = get_numbered_sources_json_schema()
+                else:
+                    response_format = None
                 
                 llm_response = await get_llm_response(
                     metrics_connection=metrics_conn,
                     prompt=prompt.value,
                     model=llm_configuration,
                     response_format=response_format,
+                    request_id=request_id,
                 )
                 # If we used the structured JSON prompt, validate JSON and return it
                 if prompt.id == PromptType.STRUCTURED_JSON.value:
@@ -303,6 +313,89 @@ async def handler(
                             detail={
                                 "code": "invalid_llm_json",
                                 "message": "LLM returned invalid JSON for FULL response",
+                            },
+                        )
+                elif prompt.id == PromptType.NUMBERED_SOURCES.value:
+                    # Process numbered sources response
+                    try:
+                        parsed = json.loads(llm_response)
+                        main_summary = parsed.get("main_summary", "")
+                        source_numbers = parsed.get("sources", [])
+                        
+                        logger.info(f"[FULL RESPONSE] LLM returned main_summary and {len(source_numbers)} numbered sources: {source_numbers}")
+                        
+                        # Map numbered sources back to transcript_data (1-indexed: [1] = transcript_data[0])
+                        sources = []
+                        for source_num in source_numbers:
+                            if not isinstance(source_num, int):
+                                try:
+                                    source_num = int(source_num)
+                                except (ValueError, TypeError):
+                                    logger.warning(f"[FULL RESPONSE] Invalid source number: {source_num}, skipping")
+                                    continue
+                            
+                            # Convert to 0-based index
+                            idx = source_num - 1
+                            if 0 <= idx < len(transcript_data) and 0 <= idx < len(documents):
+                                transcript_item = transcript_data[idx]
+                                document_item = documents[idx]
+                                
+                                # Build timestamp string
+                                time_start = transcript_item.metadata.time_start if hasattr(transcript_item.metadata, "time_start") else None
+                                time_end = transcript_item.metadata.time_end if hasattr(transcript_item.metadata, "time_end") else None
+                                if time_start and time_end:
+                                    timestamp = f"{time_start}-{time_end}"
+                                elif time_start:
+                                    timestamp = f"{time_start}"
+                                elif time_end:
+                                    timestamp = f"{time_end}"
+                                else:
+                                    timestamp = None
+                                
+                                # Post-process text: remove last sentence to avoid cut-offs
+                                processed_text = remove_last_sentence(document_item.text)
+                                
+                                source_entry = {
+                                    "slug": transcript_item.sanity_data.slug,
+                                    "timestamp": timestamp,
+                                    "text": processed_text,  # Include the processed text content
+                                }
+                                sources.append(source_entry)
+                                logger.info(
+                                    f"[FULL RESPONSE] Mapped source [{source_num}] to slug={source_entry['slug']}, "
+                                    f"timestamp={timestamp}, original_length={len(document_item.text)}, "
+                                    f"processed_length={len(processed_text)}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"[FULL RESPONSE] Source number {source_num} is out of range "
+                                    f"(valid range: 1-{len(transcript_data)}), skipping"
+                                )
+                        
+                        logger.info(
+                            f"[FULL RESPONSE] Returning {len(sources)} sources from {len(source_numbers)} numbered references"
+                        )
+                        
+                        return ChatResponse(
+                            main_text=main_summary,
+                            sources=sources,
+                        )
+                    except json.JSONDecodeError as e:
+                        logger.error(f"[FULL RESPONSE ERROR] JSON decode error: {e}, response preview: {llm_response[:500]}")
+                        raise HTTPException(
+                            status_code=500,
+                            detail={
+                                "code": "invalid_llm_json",
+                                "message": "LLM returned invalid JSON for numbered sources response",
+                            },
+                        )
+                    except Exception as e:
+                        logger.error(f"[FULL RESPONSE ERROR] Unexpected error: {e}", exc_info=True)
+                        raise HTTPException(
+                            status_code=500,
+                            detail={
+                                "code": "invalid_llm_json",
+                                "message": "LLM returned invalid JSON for numbered sources response",
                             },
                         )
                 else:
@@ -469,7 +562,7 @@ async def generate(
     metrics_connection: MetricsConnection,
     name_spaces: list[str] = None,
     prompt_id: PromptType = PromptType.LIGHT,
-) -> (Prompt, list[TranscriptData]):
+) -> (Prompt, list[TranscriptData], list[DocumentModel]):
     """
     Generate an LLM prompt and retrieve relevant context.
 
@@ -481,7 +574,7 @@ async def generate(
         name_spaces: Name spaces optional.
 
     Returns:
-        Tuple[str, List[dict]]: The generated prompt and list of metadata.
+        Tuple[Prompt, List[TranscriptData], List[DocumentModel]]: The generated prompt, transcript data, and document models.
 
     Raises:
         InputValidationError: If the user question is empty.
@@ -513,4 +606,4 @@ async def generate(
         raise LLMBaseException(str(e))
     
     logger.info(f"[GENERATE END] request_id={request_id}, Returning prompt and {len(transcript_data)} transcript_data items")
-    return prompt, transcript_data
+    return prompt, transcript_data, data
