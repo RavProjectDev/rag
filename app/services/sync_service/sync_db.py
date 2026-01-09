@@ -98,7 +98,7 @@ if __name__ == "__main__":
             index=collection_index,
             vector_path=vector_path,
         )
-        embedding_configuration = EmbeddingConfiguration.GEMINI
+        embedding_configuration = EmbeddingConfiguration.GEMINI_RETRIEVAL_DOCUMENT
         await run(
             connection=mongo_connection, embedding_configuration=embedding_configuration
         )

@@ -1,250 +1,116 @@
-import json
-import uuid
-import pysrt
-from rag.app.schemas.data import Chunk, TypeOfFormat
-import logging
-from rag.app.services.preprocess.constants import EMBEDDING_TEXT_SIZE, FULL_TEXT_SIZE, CHUNKS_PER_SEGMENT
+"""
+Main preprocessing module for transcripts.
 
-logging.basicConfig(level=logging.INFO)
+This module handles:
+1. Text extraction from SRT/TXT files
+2. Routing to appropriate chunking strategy based on configuration
+3. Returning processed chunks
+
+Chunking strategies are implemented in separate modules:
+- chunking_strategies/fixed_size.py: Strategy A
+- chunking_strategies/semantic.py: Strategy B
+- chunking_strategies/sliding_window.py: Strategy C
+"""
+import logging
+from typing import List, Tuple
+from rag.app.schemas.data import Chunk, TypeOfFormat, ChunkingStrategy, EmbeddingConfiguration
+from rag.app.core.config import get_settings
+from rag.app.services.preprocess.chunking_strategies import (
+    preprocess_raw_transcripts_fixed,
+    preprocess_raw_transcripts_semantic,
+    preprocess_raw_transcripts_sliding_window,
+)
+from rag.app.services.preprocess.constants import SEMANTIC_SIMILARITY_THRESHOLD
+
 logger = logging.getLogger(__name__)
 
 
-def build_chunks(subs, name_space, embed_word_limit=EMBEDDING_TEXT_SIZE) -> list[Chunk]:
+async def preprocess_raw_transcripts(
+    raw_transcripts: List[Tuple[str, str]],
+    data_format: TypeOfFormat = TypeOfFormat.SRT,
+    chunking_strategy: ChunkingStrategy | None = None,
+    embedding_configuration: EmbeddingConfiguration | None = None,
+    similarity_threshold: float = SEMANTIC_SIMILARITY_THRESHOLD,
+) -> List[Chunk]:
     """
-    Builds a list of Chunk objects from subtitle segments, where each chunk contains
-    a segment for embedding and the full text for reference.
-
-    All chunks created from the same text segment share a single UUID (full_text_id)
-    to enable deduplication during retrieval.
-
-    If the segment exceeds FULL_TEXT_SIZE (200 words), it is divided evenly into
-    CHUNKS_PER_SEGMENT (4) chunks. Otherwise, it uses the embed_word_limit (50 words)
-    to create chunks.
-
-    :param subs: List of subtitle objects (pysrt.SubRipItem).
-    :param name_space: The name of the file or namespace for this chunk.
-    :param embed_word_limit: Number of words per embedding segment (default: 50 from EMBEDDING_TEXT_SIZE).
-    :return: List of Chunk objects with shared full_text_id.
-
-    Example:
-    If subs contain 250 words total (exceeds FULL_TEXT_SIZE):
-    - Divides evenly into 4 chunks: ~63+63+62+62 words each
-    - All chunks share the same full_text_id and full_text (all 250 words)
+    Main preprocessing function that routes to the appropriate chunking strategy.
     
-    If subs contain 200 words total:
-    - Divides into 4 chunks: 50+50+50+50 words each
-    - All chunks share the same full_text_id and full_text (all 200 words)
-    """
-    if not subs:
-        return []
-
-    start_time = subs[0].start
-    end_time = subs[-1].end
-
-    full_text = " ".join(s.text.replace("\n", " ") for s in subs)
-
-    # Get all words from all subtitles
-    all_words = []
-    for sub in subs:
-        clean_text = sub.text.replace("\n", " ")
-        words = clean_text.split()
-        all_words.extend(words)
-
-    # Generate ONE shared UUID for all chunks from this text segment
-    # This is critical for deduplication during retrieval
-    shared_text_id = uuid.uuid4()
-
-    chunks = []
-    total_words = len(all_words)
-
-    # If segment exceeds FULL_TEXT_SIZE, divide evenly into CHUNKS_PER_SEGMENT chunks
-    if total_words > FULL_TEXT_SIZE:
-        # Calculate words per chunk (distribute remainder evenly)
-        words_per_chunk = total_words // CHUNKS_PER_SEGMENT
-        remainder = total_words % CHUNKS_PER_SEGMENT
+    This function:
+    1. Extracts text from SRT/TXT files
+    2. Routes to the appropriate chunking strategy based on configuration
+    3. Returns processed chunks
+    
+    Args:
+        raw_transcripts: List of (filename, content) tuples
+        data_format: Format of the data (SRT or TXT)
+        chunking_strategy: Chunking strategy to use. If None, uses config default.
+        embedding_configuration: Embedding config. Note: For semantic chunking, this parameter
+                                is kept for API compatibility but ignored - semantic chunking
+                                always uses BERT (all-MiniLM-L6-v2) internally for similarity
+                                calculations. This config is only used later for final storage
+                                embeddings.
+        similarity_threshold: Similarity threshold for semantic chunking (default: 0.7)
         
-        start_idx = 0
-        for i in range(CHUNKS_PER_SEGMENT):
-            # Add 1 extra word to first 'remainder' chunks to distribute evenly
-            chunk_size = words_per_chunk + (1 if i < remainder else 0)
-            end_idx = start_idx + chunk_size
-            
-            text_to_embed = " ".join(all_words[start_idx:end_idx])
-            
-            chunk = Chunk(
-                full_text_id=shared_text_id,  # Same UUID for all chunks from this segment
-                time_start=str(start_time),
-                time_end=str(end_time),
-                full_text=full_text,  # Same complete text for all chunks
-                text_to_embed=text_to_embed,  # Unique segment for embedding
-                chunk_size=total_words,  # Total word count across all subs
-                embed_size=chunk_size,  # Words in this specific embedding segment
-                name_space=name_space,
-            )
-            chunks.append(chunk)
-            start_idx = end_idx
-    else:
-        # Original logic for segments <= FULL_TEXT_SIZE
-        # Use embed_word_limit to create chunks
-        for i in range(0, total_words, embed_word_limit):
-            # Get the next segment (or remaining words if less than embed_word_limit)
-            end_idx = min(i + embed_word_limit, total_words)
-            text_to_embed = " ".join(all_words[i:end_idx])
-            embed_size = end_idx - i
-
-            chunk = Chunk(
-                full_text_id=shared_text_id,  # Same UUID for all chunks from this segment
-                time_start=str(start_time),
-                time_end=str(end_time),
-                full_text=full_text,  # Same complete text for all chunks
-                text_to_embed=text_to_embed,  # Unique segment for embedding
-                chunk_size=total_words,  # Total word count across all subs
-                embed_size=embed_size,  # Words in this specific embedding segment
-                name_space=name_space,
-            )
-            chunks.append(chunk)
-
-    return chunks
-
-
-def chunk_srt(content: tuple[str, str]) -> list[Chunk]:
-    file_name, text = content
-    logger.debug(f"Chunking SRT file: {file_name}")
-    subs = pysrt.from_string(text)
-    logger.debug(f"Parsed {len(subs)} subtitle segments from {file_name}")
-
-    chunks = []
-    current_chunk = []
-    word_count = 0
-    last_segment_subs = []  # Track the last processed segment for potential merging
-    chunks_from_last_segment = 0  # Track how many chunks from last segment
-
-    for sub in subs:
-        words = sub.text.replace("\n", " ").split()
-        current_chunk.append(sub)
-        word_count += len(words)
-
-        if word_count >= FULL_TEXT_SIZE:
-            # Store this segment's subtitles before processing (for potential merge later)
-            last_segment_subs = current_chunk.copy()
-            
-            # Build chunks from current_chunk and add them to chunks list
-            new_chunks = build_chunks(current_chunk, file_name)
-            chunks_from_last_segment = len(new_chunks)
-            chunks.extend(new_chunks)
-            
-            current_chunk = []
-            word_count = 0
-
-    # Handle remaining subtitles if any
-    if current_chunk:
-        # Count words in remaining chunk
-        remaining_word_count = sum(
-            len(sub.text.replace("\n", " ").split()) for sub in current_chunk
-        )
+    Returns:
+        List of Chunk objects
         
-        # If remaining is < FULL_TEXT_SIZE (200 words), merge with previous segment
-        if remaining_word_count < FULL_TEXT_SIZE and last_segment_subs:
-            logger.debug(
-                f"Merging remaining {remaining_word_count} words with previous segment "
-                f"(avoiding small chunk < {FULL_TEXT_SIZE} words)"
-            )
-            # Remove the last segment's chunks (they'll be recreated with merged content)
-            chunks = chunks[:-chunks_from_last_segment]
-            # Merge the previous segment with remaining subtitles
-            merged_subs = last_segment_subs + current_chunk
-            # Rebuild with merged content (will create 4 even chunks if > 200 words)
-            merged_chunks = build_chunks(merged_subs, file_name)
-            chunks.extend(merged_chunks)
-        else:
-            # Remaining is >= FULL_TEXT_SIZE, process normally
-            new_chunks = build_chunks(current_chunk, file_name)
-            chunks.extend(new_chunks)
-
-    logger.debug(f"Created {len(chunks)} chunks from {file_name}")
-    return chunks
-
-
-def chunk_txt(content: tuple[str, str]) -> list[Chunk]:
-    """
-    Splits plain text into word-based chunks without timing metadata.
-
-    For TXT files, each chunk is independent (full_text = text_to_embed),
-    so each gets its own unique UUID.
-
-    :param content: A tuple containing (filename, raw text content).
-    :return: A list of Chunk objects, each with text data, chunk size, and file-level metadata.
-    """
-    file_name, text = content
-    logger.debug(f"Chunking TXT file: {file_name}")
-    words = text.split()
-    logger.debug(f"Found {len(words)} words in {file_name}")
-
-    chunks: list[Chunk] = []
-
-    for i in range(0, len(words), EMBEDDING_TEXT_SIZE):
-        chunk_words = words[i : i + EMBEDDING_TEXT_SIZE]
-        chunk_text = " ".join(chunk_words)
-
-        # For TXT files, each chunk is independent, so generate unique UUID
-        chunk = Chunk(
-            full_text_id=uuid.uuid4(),
-            name_space=file_name,
-            text_to_embed=chunk_text,
-            chunk_size=len(chunk_words),
-            time_start=None,
-            time_end=None,
-            full_text=chunk_text,
-            embed_size=len(chunk_words),
-        )
-        chunks.append(chunk)
-
-    logger.debug(f"Created {len(chunks)} chunks from {file_name}")
-    return chunks
-
-
-def preprocess_raw_transcripts(
-    raw_transcripts: list[tuple[str, str]], data_format: TypeOfFormat = TypeOfFormat.SRT
-) -> list[Chunk]:
-    """
-    Processes raw transcripts by applying preprocessing steps, including:
-
-    1. Chunking data into fixed-size word batches
-    2. Adding metadata to each chunk
-
-    :param raw_transcripts: List of (filename, content) tuples
-    :param data_format: Format of the data (e.g., SRT or TXT)
-    :return: List of Chunk objects
+    Raises:
+        RuntimeError: If data_format is None
+        ValueError: If unsupported format or strategy
     """
     if data_format is None:
         raise RuntimeError(f"Unknown data_format")
+    
+    # Get strategy from config if not provided
+    settings = get_settings()
+    if chunking_strategy is None:
+        chunking_strategy = settings.chunking_strategy
+    
+    if embedding_configuration is None:
+        embedding_configuration = settings.embedding_configuration
+    
     logger.info(
-        f"Starting preprocessing of {len(raw_transcripts)} transcripts with format: {data_format.name}"
+        f"Starting preprocessing of {len(raw_transcripts)} transcripts "
+        f"with format: {data_format.name}, strategy: {chunking_strategy.value}"
     )
-    cleaned_transcripts: list[Chunk] = []
+    
+    # Route to appropriate chunking strategy
+    if chunking_strategy == ChunkingStrategy.FIXED_SIZE:
+        logger.info(f"Using Strategy A: Fixed-Size Chunking")
+        return preprocess_raw_transcripts_fixed(
+            raw_transcripts=raw_transcripts,
+            data_format=data_format,
+        )
+    
+    elif chunking_strategy == ChunkingStrategy.SEMANTIC:
+        logger.info(f"Using Strategy B: Semantic Chunking (uses BERT internally for similarity)")
+        return await preprocess_raw_transcripts_semantic(
+            raw_transcripts=raw_transcripts,
+            data_format=data_format,
+            embedding_configuration=embedding_configuration,
+            similarity_threshold=similarity_threshold,
+        )
+    
+    elif chunking_strategy == ChunkingStrategy.SLIDING_WINDOW:
+        logger.info(f"Using Strategy C: Sliding Window Chunking")
+        return preprocess_raw_transcripts_sliding_window(
+            raw_transcripts=raw_transcripts,
+            data_format=data_format,
+        )
+    
+    else:
+        logger.error(f"Unsupported chunking strategy: {chunking_strategy}")
+        raise ValueError(f"Unsupported chunking strategy: {chunking_strategy}")
 
-    for i, raw_transcript in enumerate(raw_transcripts, 1):
-        file_name = raw_transcript[0]
-        logger.info(f"Processing transcript {i}/{len(raw_transcripts)}: {file_name}")
 
-        if data_format.value == TypeOfFormat.SRT.value:
-            chunks = chunk_srt(raw_transcript)
-        elif data_format.value == TypeOfFormat.TXT.value:
-            chunks = chunk_txt(raw_transcript)
-        else:
-            logger.error(f"Unsupported format: {data_format}")
-            raise ValueError(f"Unsupported format: {data_format}")
-
-        cleaned_transcripts.extend(chunks)
-        logger.info(f"Completed processing {file_name}: {len(chunks)} chunks")
-
-    logger.info(
-        f"Preprocessing completed. Total chunks created: {len(cleaned_transcripts)}"
-    )
-    return cleaned_transcripts
-
-
-def translate_chunks(chunks: list[Chunk]) -> list[tuple[str, Chunk]]:
+def translate_chunks(chunks: List[Chunk]) -> List[Tuple[str, Chunk]]:
+    """
+    Translate chunks using a translation mapping file.
+    
+    This function is kept for backward compatibility.
+    """
+    import json
+    
     logger.info(f"Starting translation of {len(chunks)} chunks")
 
     try:
@@ -258,7 +124,7 @@ def translate_chunks(chunks: list[Chunk]) -> list[tuple[str, Chunk]]:
         logger.error(f"Failed to load translation file: {str(e)}")
         raise
 
-    result: list[tuple[str, Chunk]] = []
+    result: List[Tuple[str, Chunk]] = []
     for i, chunk in enumerate(chunks, 1):
         if i % 100 == 0:
             logger.debug(f"Translated {i}/{len(chunks)} chunks")

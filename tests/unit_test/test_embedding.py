@@ -42,7 +42,7 @@ async def test_generate_embedding_empty_text():
 @patch("rag.app.services.embedding.gemini_embedding")
 async def test_generate_gemini_embedding(mock_gemini_embedding):
     text = "Hello world"
-    config = EmbeddingConfiguration.GEMINI
+    config = EmbeddingConfiguration.GEMINI_RETRIEVAL_DOCUMENT
     fake_vector = [0.1] * 784
     mock_gemini_embedding.return_value = fake_vector
     embedding = await generate_embedding(text, config)
@@ -66,7 +66,7 @@ async def test_gemini_embedding_timeout(mock_get_model, mock_get_config):
     mock_get_model.return_value = SlowModel()
 
     with pytest.raises(EmbeddingTimeOutException):
-        await generate_embedding("test text", EmbeddingConfiguration.GEMINI)
+        await generate_embedding("test text", EmbeddingConfiguration.GEMINI_RETRIEVAL_DOCUMENT)
 
 
 @pytest.mark.asyncio

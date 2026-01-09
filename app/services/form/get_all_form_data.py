@@ -70,7 +70,7 @@ async def setup_connections() -> (
         vector_path=os.environ["VECTOR_PATH"],
     )
 
-    embedding_configuration = EmbeddingConfiguration.GEMINI
+    embedding_configuration = EmbeddingConfiguration.GEMINI_RETRIEVAL_DOCUMENT
     llm_configuration = LLMModel.GPT_4
 
     return mongo_connection, embedding_configuration, llm_configuration
@@ -88,6 +88,7 @@ async def generate_prompts(
     embedding = await generate_embedding(
         text=cleaned_question,
         configuration=embedding_config,
+        task_type="RETRIEVAL_QUERY",
     )
 
     if embedding is None:

@@ -60,7 +60,7 @@ class MongoEmbeddingStore(EmbeddingConnection):
         embedded_data: List[float],
         name_spaces: list[str] | None = None,
         k=5,
-        threshold: float = 0.85,
+        threshold: float = 0.7,
     ) -> list[DocumentModel]:
         settings = get_settings()
         max_retries = settings.max_retry_attempts

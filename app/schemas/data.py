@@ -89,15 +89,22 @@ class DataBaseConfiguration(Enum):
 
 
 class EmbeddingConfiguration(Enum):
-    BERT_SMALL = "all-MiniLM-L6-v2"
-    BERT_SMALL_TRANSLATED = "all-MiniLM-L6-v2"
-    GEMINI = "gemini-embedding-001"
+    GEMINI_RETRIEVAL_DOCUMENT = "gemini-retrieval-document"
+    COHERE_MULTILINGUAL = "cohere-multilingual-v3"
+    OPENAI_TEXT_EMBEDDING_3_LARGE = "openai-text-3-large"
     MOCK = "mock"
 
 
 class LLMModel(Enum):
     GPT_4 = "o4-mini"
     MOCK = "mock"
+
+
+class ChunkingStrategy(Enum):
+    """Chunking strategy selection for text preprocessing."""
+    FIXED_SIZE = "fixed-size"  # Strategy A: Fixed word-based chunking
+    SEMANTIC = "semantic-similarity"  # Strategy B: Semantic similarity-based chunking
+    SLIDING_WINDOW = "sliding-window"  # Strategy C: Token-based sliding window with overlap
 
 
 class TranscriptData(BaseModel):

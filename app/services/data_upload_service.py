@@ -20,7 +20,7 @@ async def pre_process_uploaded_document(
     embedding_configuration: EmbeddingConfiguration,
 ) -> list[VectorEmbedding]:
     contents = await fetch_transcript(str(upload_request.transcriptURL))
-    chunks = process_transcript_contents(upload_request.title, contents)
+    chunks = await process_transcript_contents(upload_request.title, contents)
     embeddings = await generate_all_embeddings(
         chunks, embedding_configuration, upload_request
     )
@@ -35,9 +35,9 @@ async def fetch_transcript(transcript_url: str) -> str:
     return response.content.decode("utf-8")
 
 
-def process_transcript_contents(title: str, raw_text: str) -> list[Chunk]:
+async def process_transcript_contents(title: str, raw_text: str) -> list[Chunk]:
     raw_transcripts = [(title, raw_text)]
-    return preprocess_raw_transcripts(raw_transcripts)
+    return await preprocess_raw_transcripts(raw_transcripts)
 
 
 async def generate_all_embeddings(

@@ -17,7 +17,6 @@ from rag.app.api.v1.data_management import router as upload_router
 from rag.app.api.v1.health import router as health_router
 from rag.app.api.v1.docs import router as docs_router
 from rag.app.api.v1.mock import router as mock_router
-from rag.app.api.v1.form import router as form_router
 from rag.app.api.v1.prompt import router as prompt_router
 from rag.app.db.connections import MetricsConnection, ExceptionsLogger
 
@@ -25,6 +24,11 @@ from rag.app.db.mongodb_connection import (
     MongoEmbeddingStore,
     MongoMetricsConnection,
     MongoExceptionsLogger,
+)
+from rag.app.db.pinecone_connection import (
+    PineconeEmbeddingStore,
+    PineconeMetricsConnection,
+    PineconeExceptionsLogger,
 )
 from rag.app.core.config import get_settings, Environment
 from rag.app.core.scheduler import start_scheduler
@@ -37,49 +41,106 @@ logging.basicConfig(level=logging.INFO)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    client = AsyncIOMotorClient(
-        settings.mongodb_uri, tlsCAFile=certifi.where(), maxPoolSize=50
-    )
-    try:
-        db = client[settings.mongodb_db_name]
-        vector_embedding_collection = db[settings.mongodb_vector_collection]
-        metrics_collection = db[settings.metrics_collection]
-        exceptions_collection = db[settings.exceptions_collection]
-
-        mongo_connection = MongoEmbeddingStore(
-            collection=vector_embedding_collection,
-            index=settings.collection_index,
-            vector_path=settings.vector_path,
-        )
-        metrics_connection = MongoMetricsConnection(
-            collection=metrics_collection,
-        )
-        exceptions_logger = MongoExceptionsLogger(
-            collection=exceptions_collection,
-        )
-
-        app.state.mongo_conn = mongo_connection
-        app.state.metrics_connection = metrics_connection
-        app.state.exceptions_logger = exceptions_logger
-        app.state.db_client = db
-        
-        # Only run the sync scheduler in production
-        if settings.environment == Environment.PRD:
-            logger.info("Starting sync scheduler (PRD environment)")
-            start_scheduler(
-                connection=mongo_connection,
-                embedding_configuration=settings.embedding_configuration,
+    
+    # Determine which database to use
+    database_type = settings.database_type.upper()
+    logger.info(f"Initializing database connection: {database_type}")
+    
+    if database_type == "PINECONE":
+        # Initialize Pinecone
+        try:
+            if not settings.pinecone_api_key or not settings.pinecone_index_name:
+                raise ValueError("Pinecone API key and index name are required")
+            
+            embedding_connection = PineconeEmbeddingStore(
+                api_key=settings.pinecone_api_key,
+                index_name=settings.pinecone_index_name,
+                dimension=settings.pinecone_dimension,
+                metric=settings.pinecone_metric,
+                cloud=settings.pinecone_cloud,
+                region=settings.pinecone_region,
             )
-        else:
-            logger.info(f"Skipping sync scheduler (environment: {settings.environment})")
-        
-        yield
+            
+            # Note: Pinecone metrics/exceptions loggers are placeholders
+            # In production, use MongoDB or another service for these
+            metrics_connection = PineconeMetricsConnection(
+                index_name=settings.pinecone_index_name,
+                api_key=settings.pinecone_api_key,
+            )
+            exceptions_logger = PineconeExceptionsLogger(
+                index_name=settings.pinecone_index_name,
+                api_key=settings.pinecone_api_key,
+            )
+            
+            app.state.mongo_conn = embedding_connection
+            app.state.metrics_connection = metrics_connection
+            app.state.exceptions_logger = exceptions_logger
+            app.state.db_client = None  # No MongoDB client for Pinecone
+            
+            logger.info("Pinecone connection initialized successfully")
+            
+            # Only run the sync scheduler in production
+            if settings.environment == Environment.PRD:
+                logger.info("Starting sync scheduler (PRD environment)")
+                start_scheduler(
+                    connection=embedding_connection,
+                    embedding_configuration=settings.embedding_configuration,
+                )
+            else:
+                logger.info(f"Skipping sync scheduler (environment: {settings.environment})")
+            
+            yield
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize Pinecone: {e}")
+            raise
+            
+    else:  # Default to MongoDB
+        client = AsyncIOMotorClient(
+            settings.mongodb_uri, tlsCAFile=certifi.where(), maxPoolSize=50
+        )
+        try:
+            db = client[settings.mongodb_db_name]
+            vector_embedding_collection = db[settings.mongodb_vector_collection]
+            metrics_collection = db[settings.metrics_collection]
+            exceptions_collection = db[settings.exceptions_collection]
 
-    except Exception as e:
-        logger.error(f"Failed to initialize MongoDB: {e}")
-        raise
-    finally:
-        client.close()
+            mongo_connection = MongoEmbeddingStore(
+                collection=vector_embedding_collection,
+                index=settings.collection_index,
+                vector_path=settings.vector_path,
+            )
+            metrics_connection = MongoMetricsConnection(
+                collection=metrics_collection,
+            )
+            exceptions_logger = MongoExceptionsLogger(
+                collection=exceptions_collection,
+            )
+
+            app.state.mongo_conn = mongo_connection
+            app.state.metrics_connection = metrics_connection
+            app.state.exceptions_logger = exceptions_logger
+            app.state.db_client = db
+            
+            logger.info("MongoDB connection initialized successfully")
+            
+            # Only run the sync scheduler in production
+            if settings.environment == Environment.PRD:
+                logger.info("Starting sync scheduler (PRD environment)")
+                start_scheduler(
+                    connection=mongo_connection,
+                    embedding_configuration=settings.embedding_configuration,
+                )
+            else:
+                logger.info(f"Skipping sync scheduler (environment: {settings.environment})")
+            
+            yield
+
+        except Exception as e:
+            logger.error(f"Failed to initialize MongoDB: {e}")
+            raise
+        finally:
+            client.close()
 
 
 app = FastAPI(
@@ -233,5 +294,3 @@ app.include_router(prompt_router, prefix="/api/v1/prompt", tags=["prompt"])
 app.include_router(
     docs_router, prefix="", tags=["docs"]
 )  # only path-level tags applied within router
-
-app.include_router(form_router, prefix="/form", tags=["form"])

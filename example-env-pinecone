@@ -1,0 +1,53 @@
+# Database Configuration
+# Set to "MONGO" or "PINECONE"
+DATABASE_TYPE=PINECONE
+
+# ============================================
+# PINECONE CONFIGURATION (if DATABASE_TYPE=PINECONE)
+# ============================================
+PINECONE_API_KEY=your-pinecone-api-key
+# PINECONE_ENVIRONMENT is no longer needed - Pinecone SDK auto-detects from API key
+PINECONE_INDEX_NAME=rav-embeddings
+PINECONE_DIMENSION=784  # 784 for Gemini, 1024 for Cohere, 3072 for OpenAI
+PINECONE_METRIC=cosine
+PINECONE_CLOUD=aws
+PINECONE_REGION=us-east-1
+
+# ============================================
+# MONGODB CONFIGURATION (if DATABASE_TYPE=MONGO)
+# ============================================
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/
+MONGODB_DB_NAME=rav_dev
+MONGODB_VECTOR_COLLECTION=embeddings
+COLLECTION_INDEX=vector_index
+METRICS_COLLECTION=metrics
+EXCEPTIONS_COLLECTION=exceptions
+
+# ============================================
+# API KEYS (Required for both)
+# ============================================
+OPENAI_API_KEY=your-openai-key
+COHERE_API_KEY=your-cohere-key
+GEMINI_API_KEY=your-gemini-key
+GOOGLE_CLOUD_PROJECT_ID=your-project-id
+VERTEX_REGION=us-central1
+
+# ============================================
+# MODEL CONFIGURATIONS
+# ============================================
+EMBEDDING_CONFIGURATION=GEMINI_RETRIEVAL_DOCUMENT
+LLM_CONFIGURATION=GPT_4
+CHUNKING_STRATEGY=FIXED_SIZE
+
+# ============================================
+# GENERAL SETTINGS
+# ============================================
+ENVIRONMENT=STG
+AUTH_MODE=dev
+VECTOR_PATH=vector
+EXTERNAL_API_TIMEOUT=60
+RETRIEVAL_TIMEOUT_MS=2000
+MAX_RETRY_ATTEMPTS=3
+RETRY_DELAY_SECONDS=1.0
+RETRY_BACKOFF_MULTIPLIER=2.0
+

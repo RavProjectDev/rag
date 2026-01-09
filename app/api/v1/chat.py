@@ -463,6 +463,7 @@ async def retrieve_relevant_documents(
             embedding = await generate_embedding(
                 text=cleaned_question,
                 configuration=embedding_configuration,
+                task_type="RETRIEVAL_QUERY",
             )
             logger.info(
                 f"[GENERATE] request_id={request_id}, Embedding generated successfully, "
