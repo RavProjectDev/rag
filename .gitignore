@@ -241,3 +241,4 @@ next-env.d.ts
 #json static files.
 *.json
 
+dev_outputs/
