@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     openai_api_key: str
     mongodb_uri: str
     mongodb_db_name: str
-    mongodb_vector_collection: str
+    mongodb_vector_collection: str | None = None
     collection_index: str = "vector_index"
     database_configuration: DataBaseConfiguration = DataBaseConfiguration.MONGO
     gemini_api_key: str
