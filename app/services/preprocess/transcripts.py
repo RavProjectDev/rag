@@ -88,13 +88,15 @@ def _build_chunk_lines(sub_entries: list[dict], lines_per_segment: int = 6) -> l
 def build_chunks(subs, name_space, tokens_per_chunk=TOKENS_PER_CHUNK) -> list[Chunk]:
     """
     FIXED_SIZE chunking strategy: accumulate subtitles until reaching token limit.
+    Uses a "soft limit" approach: once the token limit is exceeded, continues until
+    completing the current 6-line segment to avoid creating small orphaned segments.
     
     Each chunk is independent with its own UUID. The text is embedded as-is,
     while metadata stores fine-grained timestamps as tuples.
 
     :param subs: List of subtitle objects (pysrt.SubRipItem).
     :param name_space: The name of the file or namespace for this chunk.
-    :param tokens_per_chunk: Fixed number of tokens per chunk (default: 200 from TOKENS_PER_CHUNK).
+    :param tokens_per_chunk: Target number of tokens per chunk (default: 200 from TOKENS_PER_CHUNK).
     :return: List of Chunk objects, each with independent UUID.
     """
     if not subs:
@@ -106,9 +108,20 @@ def build_chunks(subs, name_space, tokens_per_chunk=TOKENS_PER_CHUNK) -> list[Ch
     current_entries = []
     current_tokens = 0
     
-    for entry in sub_stream:
-        # If adding this entry would exceed limit and we have content, create chunk
-        if current_tokens + entry["tokens"] > tokens_per_chunk and current_entries:
+    for i, entry in enumerate(sub_stream):
+        # Add entry to current batch
+        current_entries.append(entry)
+        current_tokens += entry["tokens"]
+        
+        # Check if we should create a chunk (soft limit approach):
+        # 1. We've exceeded the token limit
+        # 2. AND we've completed a 6-line segment (or we're at the end)
+        exceeded_limit = current_tokens >= tokens_per_chunk
+        segment_position = len(current_entries) % SRT_LINES_PER_SEGMENT
+        at_segment_boundary = (segment_position == 0)
+        at_end = (i == len(sub_stream) - 1)
+        
+        if exceeded_limit and (at_segment_boundary or at_end):
             # Create chunk from accumulated entries
             chunk = _create_chunk_from_entries(current_entries, name_space)
             chunks.append(chunk)
@@ -116,10 +129,6 @@ def build_chunks(subs, name_space, tokens_per_chunk=TOKENS_PER_CHUNK) -> list[Ch
             # Reset for next chunk
             current_entries = []
             current_tokens = 0
-        
-        # Add entry to current batch
-        current_entries.append(entry)
-        current_tokens += entry["tokens"]
     
     # Handle remaining entries
     if current_entries:
@@ -159,6 +168,8 @@ def _create_chunk_from_entries(entries: list[dict], name_space: str) -> Chunk:
 def build_chunks_divided(subs, name_space, chunk_size=DIVIDED_CHUNK_SIZE, subdivisions=DIVIDED_SUBDIVISIONS) -> list[Chunk]:
     """
     DIVIDED chunking strategy: accumulate subtitles to chunk_size, then subdivide.
+    Uses a "soft limit" approach: once the token limit is exceeded, continues until
+    completing the current 6-line segment to avoid creating small orphaned segments.
     
     Creates a main chunk of chunk_size tokens, then divides it into N subdivisions.
     All subdivisions share the same full_text_id and full_text metadata, but each
@@ -179,9 +190,20 @@ def build_chunks_divided(subs, name_space, chunk_size=DIVIDED_CHUNK_SIZE, subdiv
     current_entries = []
     current_tokens = 0
     
-    for entry in sub_stream:
-        # If adding this entry would exceed chunk_size and we have content, process chunk
-        if current_tokens + entry["tokens"] > chunk_size and current_entries:
+    for i, entry in enumerate(sub_stream):
+        # Add entry to current batch
+        current_entries.append(entry)
+        current_tokens += entry["tokens"]
+        
+        # Check if we should create a chunk (soft limit approach):
+        # 1. We've exceeded the token limit
+        # 2. AND we've completed a 6-line segment (or we're at the end)
+        exceeded_limit = current_tokens >= chunk_size
+        segment_position = len(current_entries) % SRT_LINES_PER_SEGMENT
+        at_segment_boundary = (segment_position == 0)
+        at_end = (i == len(sub_stream) - 1)
+        
+        if exceeded_limit and (at_segment_boundary or at_end):
             # Create subdivided chunks from accumulated entries
             subdivided_chunks = _subdivide_entries(current_entries, name_space, subdivisions)
             chunks.extend(subdivided_chunks)
@@ -189,10 +211,6 @@ def build_chunks_divided(subs, name_space, chunk_size=DIVIDED_CHUNK_SIZE, subdiv
             # Reset for next main chunk
             current_entries = []
             current_tokens = 0
-        
-        # Add entry to current batch
-        current_entries.append(entry)
-        current_tokens += entry["tokens"]
     
     # Handle remaining entries
     if current_entries:

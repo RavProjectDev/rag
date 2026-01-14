@@ -112,7 +112,7 @@ class EmbeddingConfiguration(Enum):
 
 
 class LLMModel(Enum):
-    GPT_4 = "o4-mini"
+    GPT_4 = "gpt-5.2-2025-12-11"
     MOCK = "mock"
 
 
