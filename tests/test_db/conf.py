@@ -165,6 +165,43 @@ class AsyncCollectionWrapper:
 
             return filtered_docs
 
+        elif "$group" in stage:
+            # Handle $group stage for deduplication
+            group_spec = stage["$group"]
+            group_by_field = group_spec.get("_id")
+            
+            if not group_by_field:
+                return docs
+            
+            # Extract field name from $text_id format
+            field_name = group_by_field.replace("$", "") if group_by_field.startswith("$") else group_by_field
+            
+            # Group by the specified field, keeping first document
+            seen = {}
+            for doc in docs:
+                field_value = doc.get(field_name)
+                if field_value not in seen:
+                    # Store the full document under "doc" key as per pipeline
+                    seen[field_value] = {"_id": field_value, "doc": doc}
+            
+            return list(seen.values())
+
+        elif "$replaceRoot" in stage:
+            # Handle $replaceRoot stage
+            replace_spec = stage["$replaceRoot"]
+            new_root = replace_spec.get("newRoot")
+            
+            if new_root == "$doc":
+                # Replace root with the "doc" field
+                return [doc.get("doc", doc) for doc in docs]
+            
+            return docs
+
+        elif "$limit" in stage:
+            # Handle $limit stage
+            limit = stage["$limit"]
+            return docs[:limit]
+
         elif "$project" in stage:
             # Apply projection
             projection = stage["$project"]

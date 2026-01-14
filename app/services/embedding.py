@@ -21,7 +21,6 @@ from rag.app.exceptions.embedding import *
 from rag.app.schemas.data import EmbeddingConfiguration, Embedding
 
 # Constants
-DEFAULT_EMBEDDING_DIMENSIONALITY = 784
 DEFAULT_TIMEOUT_SECONDS = 10
 MOCK_EMBEDDING_DIMENSIONALITY = 784
 
@@ -35,7 +34,6 @@ class EmbeddingServiceConfig:
     model_name: str = "gemini-embedding-001"
     default_task: str = "RETRIEVAL_DOCUMENT"
     timeout: int = DEFAULT_TIMEOUT_SECONDS
-    output_dimensionality: int = DEFAULT_EMBEDDING_DIMENSIONALITY
 
 
 @lru_cache(maxsize=1)
@@ -106,9 +104,7 @@ async def gemini_embedding(text_data: str, task_type: str = "RETRIEVAL_DOCUMENT"
     text_input = TextEmbeddingInput(text=text_data, task_type=task_type)
 
     def call_model():
-        return model.get_embeddings(
-            [text_input], output_dimensionality=config.output_dimensionality
-        )
+        return model.get_embeddings([text_input])
 
     # Use a single shared executor for better resource management
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:

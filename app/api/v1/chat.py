@@ -176,8 +176,10 @@ async def handler(
     try:
         # Generate prompt and metadata
         transcript_data: list[TranscriptData]
+        retrieved_docs: list[DocumentModel]
+        source_list: list[dict]
 
-        prompt, transcript_data = await asyncio.wait_for(
+        prompt, transcript_data, retrieved_docs, source_list = await asyncio.wait_for(
             generate(
                 user_question=chat_request.question,
                 embedding_configuration=embedding_configuration,
@@ -244,45 +246,52 @@ async def handler(
                     try:
                         parsed = json.loads(llm_response)
                         main_text = parsed.get("main_text", "")
-                        sources_raw = parsed.get("sources", [])
+                        source_numbers = parsed.get("source_numbers", [])
                         
-                        logger.info(f"[FULL RESPONSE] LLM returned {len(sources_raw)} extracted quotes")
+                        logger.info(f"[FULL RESPONSE] LLM returned {len(source_numbers)} source numbers: {source_numbers}")
                         
-                        # Normalize sources into expected shape
+                        # Build source lookup by number
+                        source_by_number = {src["number"]: src for src in source_list}
+                        
+                        # Map source numbers to actual sources
                         sources = []
                         slug_counts = {}  # Track quotes per slug
                         
-                        for idx, s in enumerate(sources_raw):
-                            if not isinstance(s, dict):
+                        for num in source_numbers:
+                            source = source_by_number.get(num)
+                            if source is None:
+                                logger.warning(
+                                    f"[FULL RESPONSE] LLM referenced source number {num} but it doesn't exist. "
+                                    f"Available numbers: {list(source_by_number.keys())[:10]}"
+                                )
                                 continue
-                            extracted_text = s.get("text", "")
-                            slug = s.get("slug", "")
+                            
                             source_entry = {
-                                "slug": slug,
-                                "timestamp": s.get("timestamp"),
-                                "text": extracted_text,
+                                "slug": source["slug"],
+                                "timestamp": source["timestamp"],
+                                "text": source["text"],
+                                "text_id": source["text_id"],
                             }
                             sources.append(source_entry)
                             
                             # Count quotes per slug
-                            slug_counts[slug] = slug_counts.get(slug, 0) + 1
+                            slug_counts[source["slug"]] = slug_counts.get(source["slug"], 0) + 1
                             
-                            # Log extraction quality
-                            text_length = len(extracted_text)
-                            word_count = len(extracted_text.split())
+                            # Log source details
                             logger.info(
-                                f"[FULL RESPONSE] Quote {idx+1}: slug={source_entry['slug']}, "
-                                f"timestamp={source_entry['timestamp']}, "
-                                f"text_length={text_length} chars, word_count={word_count} words"
+                                f"[FULL RESPONSE] Source [{num}]: slug={source['slug']}, "
+                                f"timestamp={source['timestamp']}, text_id={source['text_id']}, "
+                                f"text_length={len(source['text'])} chars"
                             )
                         
                         # Log distribution of quotes across sources
                         unique_slugs = len(slug_counts)
                         logger.info(
-                            f"[FULL RESPONSE] Returning {len(sources)} total quotes from {unique_slugs} unique source(s)"
+                            f"[FULL RESPONSE] Returning {len(sources)} sources from {unique_slugs} unique transcript(s)"
                         )
                         for slug, count in slug_counts.items():
-                            logger.info(f"[FULL RESPONSE] Source '{slug}': {count} quote(s) extracted")
+                            logger.info(f"[FULL RESPONSE] Transcript '{slug}': {count} source(s)")
+                        
                         return ChatResponse(
                             main_text=main_text,
                             sources=sources,
@@ -427,9 +436,14 @@ async def retrieve_relevant_documents(
                 f"collection='{collection_name}', index='{index_name}'"
             )
             if data:
+                preview_source = (
+                    " ".join(part[0] for part in data[0].text)[:100]
+                    if isinstance(data[0].text, list)
+                    else str(data[0].text)[:100]
+                )
                 logger.info(
                     f"[GENERATE] request_id={request_id}, Top document score: {data[0].score:.4f}, "
-                    f"slug: {data[0].sanity_data.slug}, text_preview: {data[0].text[:100]}..."
+                    f"slug: {data[0].sanity_data.slug}, text_preview: {preview_source}..."
                 )
         except DataBaseException as e:
             logger.error(
@@ -453,6 +467,7 @@ async def retrieve_relevant_documents(
                 sanity_data=datum.sanity_data,
                 metadata=datum.metadata,
                 score=datum.score,
+                text_id=datum.id,
             )
         )
 
@@ -469,7 +484,7 @@ async def generate(
     metrics_connection: MetricsConnection,
     name_spaces: list[str] = None,
     prompt_id: PromptType = PromptType.LIGHT,
-) -> (Prompt, list[TranscriptData]):
+) -> tuple[Prompt, list[TranscriptData], list[DocumentModel], list[dict]]:
     """
     Generate an LLM prompt and retrieve relevant context.
 
@@ -503,8 +518,8 @@ async def generate(
     logger.info(f"[GENERATE] request_id={request_id}, Generating prompt with {len(data)} documents, prompt_id={prompt_id}")
     
     try:
-        prompt = generate_prompt(cleaned_question, data, prompt_id=prompt_id)
-        logger.info(f"[GENERATE] request_id={request_id}, Prompt generated, length={len(prompt.value)} chars, prompt_id={prompt.id}")
+        prompt, source_list = generate_prompt(cleaned_question, data, prompt_id=prompt_id, request_id=request_id)
+        logger.info(f"[GENERATE] request_id={request_id}, Prompt generated, length={len(prompt.value)} chars, prompt_id={prompt.id}, sources={len(source_list)}")
     except LLMBaseException as e:
         logger.error(f"[GENERATE ERROR] request_id={request_id}, LLM exception: {e}")
         raise e
@@ -513,4 +528,4 @@ async def generate(
         raise LLMBaseException(str(e))
     
     logger.info(f"[GENERATE END] request_id={request_id}, Returning prompt and {len(transcript_data)} transcript_data items")
-    return prompt, transcript_data
+    return prompt, transcript_data, data, source_list

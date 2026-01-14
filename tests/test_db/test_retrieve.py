@@ -30,7 +30,8 @@ async def test_insert_and_retrieve():
     store = MongoEmbeddingStore(collection, index="myindex", vector_path="vector")
     doc = make_vector_embedding()
     await collection.insert_many([doc.to_dict()])
-    result = await store.retrieve(embedded_data=[0.1] * 748)
+    # Use same dimension as the factory (3072 for Gemini)
+    result = await store.retrieve(embedded_data=[0.1] * 3072)
     expected_doc = result[0]
     assert expected_doc.sanity_data == doc.sanity_data
     assert expected_doc.score == 1
@@ -42,8 +43,9 @@ async def test_insert_retrieve_with_name_space():
     store = MongoEmbeddingStore(collection, index="myindex", vector_path="vector")
     doc = make_vector_embedding()
     await collection.insert_many([doc.to_dict()])
+    # Use same dimension as the factory (3072 for Gemini)
     result = await store.retrieve(
-        embedded_data=[0.1] * 748, name_spaces=[doc.metadata.name_space]
+        embedded_data=[0.1] * 3072, name_spaces=[doc.metadata.name_space]
     )
     expected_doc = result[0]
     assert expected_doc.sanity_data == doc.sanity_data

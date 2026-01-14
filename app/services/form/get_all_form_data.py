@@ -99,7 +99,8 @@ async def generate_prompts(
     # Generate prompts
     prompts = []
     for prompt_key in PROMPT_KEYS:
-        prompt = generate_prompt(cleaned_question, data, prompt_id=prompt_key)
+        # Note: request_id is optional, not passing it here since this is a batch script
+        prompt, _ = generate_prompt(cleaned_question, data, prompt_id=prompt_key, request_id=None)
         prompts.append(prompt)
 
     return prompts

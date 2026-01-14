@@ -1,6 +1,6 @@
 import uuid
 from enum import Enum, auto
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Tuple
 
 from pydantic import BaseModel
 
@@ -13,7 +13,10 @@ class Chunk(BaseModel):
 
     Attributes:
         full_text_id (uuid.UUID): Unique identifier shared by all chunks from the same text segment.
-        full_text (str): The complete text segment (e.g., 200 words).
+        full_text (Union[str, list[tuple[str, tuple[str | None, str | None]]]]):
+            The text for this chunk. For SRT inputs this is a list of tuples
+            (text, (start, end)) to keep fine-grained timestamps. For TXT inputs it
+            remains a plain string.
         text_to_embed (str): The specific portion to embed (e.g., 50 words).
         chunk_size (int): The total size of the full text segment in words.
         embed_size (int): The size of this specific embedding chunk in words.
@@ -23,7 +26,7 @@ class Chunk(BaseModel):
     """
 
     full_text_id: uuid.UUID
-    full_text: str
+    full_text: Union[str, List[Tuple[str, Tuple[Optional[str], Optional[str]]]]]
     text_to_embed: str
     chunk_size: int
     time_start: Optional[str] = None
@@ -60,9 +63,12 @@ class VectorEmbedding(BaseModel):
     sanity_data: SanityData
 
     def to_dict(self) -> dict:
+        # Store full_text as-is with fine-grained timestamps
+        # For SRT: list of [(text, [start, end]), ...]
+        # For TXT: plain string
         return {
             "vector": self.vector,
-            "text": self.metadata.full_text,
+            "text": self.metadata.full_text,  # Store structured data with timestamps
             "text_id": str(self.metadata.full_text_id),  # Top-level for MongoDB grouping
             "metadata": self.metadata.to_dict(),
             "sanity_data": self.sanity_data.to_dict(),
@@ -84,8 +90,18 @@ class TypeOfFormat(Enum):
 
 
 class DataBaseConfiguration(Enum):
-    PINECONE = auto()
-    MONGO = auto()
+    PINECONE = "pinecone"
+    MONGO = "mongo"
+
+
+class ChunkingStrategy(Enum):
+    """Available chunking strategies for document processing."""
+    FIXED_SIZE = "fixed_size"  # Fixed token-based chunking
+    DIVIDED = "divided"  # Large chunks divided into sub-chunks with shared context
+    # Future strategies can be added here:
+    # SEMANTIC = "semantic"  # Semantic-based chunking
+    # SENTENCE = "sentence"  # Sentence-boundary chunking
+    # SLIDING_WINDOW = "sliding_window"  # Overlapping window chunking
 
 
 class EmbeddingConfiguration(Enum):

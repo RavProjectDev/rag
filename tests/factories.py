@@ -67,7 +67,7 @@ def make_vector_embedding(
     randomize_sanity_data=False,
     **overrides,
 ):
-    vector_length = 748
+    vector_length = 3072  # Gemini default dimension
     data = {
         "vector": (
             [random.uniform(-1, 1) for _ in range(vector_length)]

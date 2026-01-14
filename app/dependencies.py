@@ -8,6 +8,8 @@ from rag.app.db.connections import EmbeddingConnection, MetricsConnection
 
 
 def get_embedding_conn(request: Request) -> EmbeddingConnection:
+    if hasattr(request.app.state, "embedding_conn"):
+        return request.app.state.embedding_conn
     return request.app.state.mongo_conn
 
 
@@ -28,4 +30,6 @@ def get_settings_dependency():
 
 
 def get_random_embedding_collection(request: Request) -> EmbeddingConnection:
+    if hasattr(request.app.state, "embedding_conn"):
+        return request.app.state.embedding_conn
     return request.app.state.mongo_conn

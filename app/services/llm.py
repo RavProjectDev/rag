@@ -51,13 +51,8 @@ def get_chat_response_json_schema(require_timestamp: bool = False) -> Dict[str, 
     This schema enforces the structure expected by the chat endpoint.
     
     Args:
-        require_timestamp: If True, timestamp will be required in the schema.
-                          If False, timestamp will be optional.
+        require_timestamp: Not used anymore, kept for backwards compatibility.
     """
-    source_required = ["slug", "text"]
-    if require_timestamp:
-        source_required.append("timestamp")
-    
     return {
         "type": "json_schema",
         "json_schema": {
@@ -67,33 +62,18 @@ def get_chat_response_json_schema(require_timestamp: bool = False) -> Dict[str, 
                 "properties": {
                     "main_text": {
                         "type": "string",
-                        "description": "A concise summary synthesizing the relevant extracted quotes"
+                        "description": "A comprehensive response that directly answers the user's question"
                     },
-                    "sources": {
+                    "source_numbers": {
                         "type": "array",
-                        "description": "Array of relevant quoted sources from the context",
+                        "description": "Array of source numbers (integers) referenced in the main_text",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "slug": {
-                                    "type": "string",
-                                    "description": "The source document slug"
-                                },
-                                "timestamp": {
-                                    "type": ["string", "null"],
-                                    "description": "Timestamp in format 'start-end' or single value, or null"
-                                },
-                                "text": {
-                                    "type": "string",
-                                    "description": "A relevant quote or excerpt from the source document"
-                                }
-                            },
-                            "required": source_required,
-                            "additionalProperties": False
+                            "type": "integer",
+                            "description": "The number of a source from the context (e.g., 1, 2, 3)"
                         }
                     }
                 },
-                "required": ["main_text", "sources"],
+                "required": ["main_text", "source_numbers"],
                 "additionalProperties": False
             },
             "strict": False
@@ -335,13 +315,91 @@ async def stream_llm_response(
 # ---------------------------------------------------------------
 
 
+def _write_prompt_to_dev_outputs(
+    filled_prompt: str,
+    user_question: str,
+    prompt_id: str,
+    request_id: str | None,
+    num_docs: int,
+    source_list: list[dict],
+) -> None:
+    """
+    Write the filled prompt to dev_outputs/ directory for debugging.
+    
+    Args:
+        filled_prompt: The complete prompt with context
+        user_question: The original user question
+        prompt_id: The prompt template ID used
+        request_id: Optional request ID for the filename
+        num_docs: Number of documents in the context
+        source_list: List of source references
+    """
+    import json
+    from pathlib import Path
+    from datetime import datetime
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Create dev_outputs directory if it doesn't exist
+        dev_outputs_dir = Path(__file__).parent.parent.parent / "dev_outputs"
+        dev_outputs_dir.mkdir(exist_ok=True)
+        
+        # Generate filename with timestamp and request_id
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        req_id_part = f"_{request_id[:8]}" if request_id else ""
+        filename = f"prompt_{timestamp}{req_id_part}.txt"
+        filepath = dev_outputs_dir / filename
+        
+        # Prepare metadata
+        metadata = {
+            "timestamp": timestamp,
+            "request_id": request_id,
+            "user_question": user_question,
+            "prompt_id": prompt_id,
+            "num_documents": num_docs,
+            "num_sources": len(source_list),
+            "prompt_length": len(filled_prompt),
+        }
+        
+        # Write to file
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write("=" * 80 + "\n")
+            f.write("DEBUG OUTPUT - LLM PROMPT WITH CONTEXT\n")
+            f.write("=" * 80 + "\n\n")
+            f.write("METADATA:\n")
+            f.write(json.dumps(metadata, indent=2))
+            f.write("\n\n")
+            f.write("=" * 80 + "\n")
+            f.write("FULL PROMPT:\n")
+            f.write("=" * 80 + "\n\n")
+            f.write(filled_prompt)
+            f.write("\n\n")
+            f.write("=" * 80 + "\n")
+            f.write("SOURCE LIST:\n")
+            f.write("=" * 80 + "\n\n")
+            f.write(json.dumps(source_list, indent=2, ensure_ascii=False))
+            f.write("\n")
+        
+        logger.info(f"[DEV_OUTPUTS] Wrote prompt to {filepath}")
+    except Exception as e:
+        logger.error(f"[DEV_OUTPUTS] Failed to write prompt to dev_outputs: {e}")
+
+
 def generate_prompt(
     user_question: str,
     data: list[DocumentModel],
     prompt_id: PromptType = PromptType.LIGHT,
-) -> Prompt:
+    request_id: str | None = None,
+) -> tuple[Prompt, list[dict]]:
     """
     Constructs a prompt including retrieved context snippets.
+    
+    Args:
+        user_question: The user's question
+        data: List of retrieved documents
+        prompt_id: Type of prompt to generate
+        request_id: Optional request ID for logging and debug output filenames
     """
     logger = logging.getLogger(__name__)
     logger.info(
@@ -355,52 +413,112 @@ def generate_prompt(
 
     context_parts = []
     token_count = 0
+    source_list = []  # Store numbered sources for STRUCTURED_JSON
+    source_number = 1  # Start numbering at 1
+
+    def _normalize_text(text):
+        if isinstance(text, list):
+            return " ".join(segment[0] for segment in text).strip()
+        return (text or "").strip()
 
     for doc in data:
-        quote = doc.text.strip()
-
-        # Build timestamp string from metadata if available
-        time_start = doc.metadata.time_start if hasattr(doc.metadata, "time_start") else None
-        time_end = doc.metadata.time_end if hasattr(doc.metadata, "time_end") else None
-        if time_start and time_end:
-            timestamp = f"{time_start}-{time_end}"
-        elif time_start:
-            timestamp = f"{time_start}"
-        elif time_end:
-            timestamp = f"{time_end}"
+        # For STRUCTURED_JSON prompts, handle list of tuples differently
+        if resolved_prompt_id == PromptType.STRUCTURED_JSON.value and isinstance(doc.text, list):
+            # Each tuple in the list becomes a separate numbered source
+            slug = doc.sanity_data.slug
+            
+            for segment in doc.text:
+                if isinstance(segment, (list, tuple)) and len(segment) >= 2:
+                    text_content = segment[0]
+                    timestamps = segment[1]
+                    
+                    # Extract start and end timestamps from the tuple
+                    if isinstance(timestamps, (list, tuple)) and len(timestamps) >= 2:
+                        time_start = timestamps[0]
+                        time_end = timestamps[1]
+                        if time_start and time_end:
+                            timestamp = f"{time_start}-{time_end}"
+                        elif time_start:
+                            timestamp = f"{time_start}"
+                        elif time_end:
+                            timestamp = f"{time_end}"
+                        else:
+                            timestamp = None
+                    else:
+                        timestamp = None
+                    
+                    # Store source info for later mapping
+                    source_list.append({
+                        "number": source_number,
+                        "slug": slug,
+                        "timestamp": timestamp,
+                        "text": text_content,
+                        "text_id": doc.id,
+                    })
+                    
+                    # Create numbered entry for context
+                    entry = f"[{source_number}] {text_content}\n(Source: {slug}, Timestamp: {timestamp})"
+                    
+                    logger.debug(
+                        f"[PROMPT GENERATION] Added source [{source_number}]: slug={slug}, "
+                        f"timestamp={timestamp}, text_length={len(text_content)} chars"
+                    )
+                    
+                    tokens = estimate_tokens(entry)
+                    context_parts.append(entry)
+                    token_count += tokens
+                    source_number += 1
         else:
-            timestamp = None
+            # For non-STRUCTURED_JSON prompts or plain text, use existing logic
+            quote = _normalize_text(doc.text)
 
-        # Choose context entry format based on prompt_id
-        if resolved_prompt_id == PromptType.STRUCTURED_JSON.value:
-            # JSON-line style entry with explicit fields for easier association
-            # Ensure double quotes and nulls where appropriate
-            safe_text = quote.replace("\\", "\\\\").replace("\"", "\\\"")
-            safe_slug = doc.sanity_data.slug.replace("\\", "\\\\").replace("\"", "\\\"")
-            ts_value = f'"{timestamp}"' if timestamp else "null"
-            entry = (
-                "{"
-                f"\"slug\": \"{safe_slug}\", \"timestamp\": {ts_value}, \"text\": \"{safe_text}\""
-                "}"
-            )
-            # Log the source chunk being added
-            logger.debug(
-                f"[PROMPT GENERATION] Added source: slug={doc.sanity_data.slug}, "
-                f"timestamp={timestamp}, text_length={len(quote)} chars, "
-                f"text_preview={quote[:100]}..."
-            )
-        else:
-            # Original human-readable entry with metadata dump
-            metadata_str = ", ".join(
-                f"{k}: {v}" for k, v in doc.metadata.model_dump().items()
-            )
-            # Add slug explicitly to source line
-            entry = f'"{quote}"\n(Source: slug: {doc.sanity_data.slug}, {metadata_str})'
+            # Build timestamp string from metadata if available
+            time_start = doc.metadata.time_start if hasattr(doc.metadata, "time_start") else None
+            time_end = doc.metadata.time_end if hasattr(doc.metadata, "time_end") else None
+            if time_start and time_end:
+                timestamp = f"{time_start}-{time_end}"
+            elif time_start:
+                timestamp = f"{time_start}"
+            elif time_end:
+                timestamp = f"{time_end}"
+            else:
+                timestamp = None
 
-        tokens = estimate_tokens(entry)
+            # Choose context entry format based on prompt_id
+            if resolved_prompt_id == PromptType.STRUCTURED_JSON.value:
+                # Numbered source format
+                slug = doc.sanity_data.slug
+                
+                # Store source info for later mapping
+                source_list.append({
+                    "number": source_number,
+                    "slug": slug,
+                    "timestamp": timestamp,
+                    "text": quote,
+                    "text_id": doc.id,
+                })
+                
+                # Create numbered entry for context
+                entry = f"[{source_number}] {quote}\n(Source: {slug}, Timestamp: {timestamp})"
+                
+                # Log the source chunk being added
+                logger.debug(
+                    f"[PROMPT GENERATION] Added source [{source_number}]: slug={slug}, "
+                    f"timestamp={timestamp}, text_length={len(quote)} chars"
+                )
+                source_number += 1
+            else:
+                # Original human-readable entry with metadata dump
+                metadata_str = ", ".join(
+                    f"{k}: {v}" for k, v in doc.metadata.model_dump().items()
+                )
+                # Add slug explicitly to source line
+                entry = f'"{quote}"\n(Source: slug: {doc.sanity_data.slug}, {metadata_str})'
 
-        context_parts.append(entry)
-        token_count += tokens
+            tokens = estimate_tokens(entry)
+
+            context_parts.append(entry)
+            token_count += tokens
 
     context = "\n\n".join(context_parts)
     logger.info(f"[PROMPT GENERATION] Context built with {len(context_parts)} documents, ~{token_count} estimated tokens")
@@ -416,11 +534,27 @@ def generate_prompt(
     )
 
     logger.info(f"[PROMPT GENERATION] Final prompt length: {len(filled_prompt)} characters")
+    logger.info(f"[PROMPT GENERATION] Created {len(source_list)} numbered sources for STRUCTURED_JSON")
     logger.debug(f"[PROMPT GENERATION] Prompt preview (first 500 chars): {filled_prompt[:500]}...")
     
-    return Prompt(
-        value=filled_prompt,
-        id=resolved_prompt_id,
+    # Write prompt to dev_outputs if enabled
+    settings = get_settings()
+    if settings.dev_outputs:
+        _write_prompt_to_dev_outputs(
+            filled_prompt=filled_prompt,
+            user_question=user_question,
+            prompt_id=resolved_prompt_id,
+            request_id=request_id,
+            num_docs=len(data),
+            source_list=source_list,
+        )
+    
+    return (
+        Prompt(
+            value=filled_prompt,
+            id=resolved_prompt_id,
+        ),
+        source_list,
     )
 
 

@@ -98,6 +98,7 @@ async def helper(
                 sanity_data=datum.sanity_data,
                 metadata=datum.metadata,
                 score=datum.score,
+                text_id=datum.id,
             )
         )
     return transcript_data

@@ -215,9 +215,8 @@ async def _generate(
     prompts: list[Prompt] = []
     try:
         for prompt_key in PROMPT_KEYS:
-            prompts.append(
-                generate_prompt(cleaned_question, data, prompt_id=prompt_key)
-            )
+            prompt, _ = generate_prompt(cleaned_question, data, prompt_id=prompt_key)
+            prompts.append(prompt)
     except Exception as e:
         raise
 
@@ -228,6 +227,7 @@ async def _generate(
                 sanity_data=datum.sanity_data,
                 metadata=datum.metadata,
                 score=datum.score,
+                text_id=datum.id,
             )
         )
 
