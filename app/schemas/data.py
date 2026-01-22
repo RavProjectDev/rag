@@ -23,6 +23,7 @@ class Chunk(BaseModel):
         time_start (str): Start timestamp from SRT file, if available.
         time_end (str): End timestamp from SRT file, if available.
         name_space (str): Identifier for the source transcript/document.
+        text_hash (str): SHA-256 hash of the text_to_embed field.
     """
 
     full_text_id: uuid.UUID
@@ -33,6 +34,7 @@ class Chunk(BaseModel):
     time_end: Optional[str] = None
     name_space: str
     embed_size: int
+    text_hash: str
 
     def to_dict(self):
         return {
@@ -42,6 +44,7 @@ class Chunk(BaseModel):
             "name_space": self.name_space,
             "embed_size": self.embed_size,
             "full_text_id": str(self.full_text_id),
+            "text_hash": self.text_hash,
         }
 
     model_config = {"env_file": ".env", "arbitrary_types_allowed": True}
@@ -55,12 +58,17 @@ class VectorEmbedding(BaseModel):
         vector (list[float]): The embedding vector representation.
         dimension (int): The dimensionality of the embedding.
         metadata (Chunk): The associated Chunk object containing the source text and metadata.
+        sanity_data (SanityData): Document metadata from Sanity CMS.
+        embedding_model (str): The embedding model used (e.g., "openai", "gemini-embedding-001").
+        chunking_strategy (str): The chunking strategy used (e.g., "fixed_size", "divided").
     """
 
     vector: List[float]
     dimension: int
     metadata: Chunk
     sanity_data: SanityData
+    embedding_model: str
+    chunking_strategy: str
 
     def to_dict(self) -> dict:
         # Store full_text as-is with fine-grained timestamps
@@ -72,6 +80,8 @@ class VectorEmbedding(BaseModel):
             "text_id": str(self.metadata.full_text_id),  # Top-level for MongoDB grouping
             "metadata": self.metadata.to_dict(),
             "sanity_data": self.sanity_data.to_dict(),
+            "embedding_model": self.embedding_model,
+            "chunking_strategy": self.chunking_strategy,
         }
 
 
@@ -108,6 +118,8 @@ class EmbeddingConfiguration(Enum):
     BERT_SMALL = "all-MiniLM-L6-v2"
     BERT_SMALL_TRANSLATED = "all-MiniLM-L6-v2"
     GEMINI = "gemini-embedding-001"
+    COHERE = "cohere"
+    OPENAI = "openai"
     MOCK = "mock"
 
 

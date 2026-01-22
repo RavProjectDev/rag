@@ -83,10 +83,12 @@ async def get_chunks(
     client: AsyncIOMotorClient = app_state.app.state.db_client
     collection_name = random.choice(COLLECTIONS)
     collection = client[collection_name]
+    chunks_collection = client["chunks"]
     connection: EmbeddingConnection = MongoEmbeddingStore(
         collection=collection,
         index=get_settings().collection_index,
         vector_path=get_settings().vector_path,
+        chunks_collection=chunks_collection,
     )
     cleaned_question = pre_process_user_query(question)
     # Generate embedding with metrics logging
@@ -95,6 +97,7 @@ async def get_chunks(
         embedding = await generate_embedding(
             text=cleaned_question,
             configuration=embedding_configuration,
+            task_type="RETRIEVAL_QUERY",  # User query for search
         )
         vector: list[float] = embedding.vector
         data: list[DocumentModel]
@@ -196,6 +199,7 @@ async def _generate(
         embedding = await generate_embedding(
             text=cleaned_question,
             configuration=embedding_configuration,
+            task_type="RETRIEVAL_QUERY",  # User query for search
         )
 
     except Exception as e:

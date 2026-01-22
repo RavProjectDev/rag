@@ -4,12 +4,14 @@ from rag.app.db.connections import EmbeddingConnection
 from rag.app.dependencies import (
     get_embedding_conn,
     get_embedding_configuration,
+    get_chunking_strategy,
 )
 from rag.app.exceptions import BaseAppException
 from rag.app.exceptions.upload import BaseUploadException
 from rag.app.models.data import SanityData
 from rag.app.schemas.data import (
     EmbeddingConfiguration,
+    ChunkingStrategy,
 )
 from rag.app.schemas.response import UploadResponse, ErrorResponse, SuccessResponse
 from rag.app.services.data_upload_service import (
@@ -40,6 +42,7 @@ async def upload_files(
     embedding_configuration: EmbeddingConfiguration = Depends(
         get_embedding_configuration
     ),
+    chunking_strategy: ChunkingStrategy = Depends(get_chunking_strategy),
 ):
     """
       Upload endpoint for subtitle (.srt) files.
@@ -78,7 +81,7 @@ async def upload_files(
     """
     try:
         await upload_document_service(
-            upload_request, embedding_conn, embedding_configuration
+            upload_request, embedding_conn, embedding_configuration, chunking_strategy
         )
 
     except BaseUploadException as e:
@@ -113,10 +116,11 @@ async def update_files(
     embedding_configuration: EmbeddingConfiguration = Depends(
         get_embedding_configuration
     ),
+    chunking_strategy: ChunkingStrategy = Depends(get_chunking_strategy),
 ):
     try:
         await update_documents_service(
-            update_request, embedding_conn, embedding_configuration
+            update_request, embedding_conn, embedding_configuration, chunking_strategy
         )
     except BaseUploadException as e:
         raise HTTPException(

@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     )
     
     openai_api_key: str
+    cohere_api_key: str | None = None
     mongodb_uri: str
     mongodb_db_name: str
     mongodb_vector_collection: str | None = None

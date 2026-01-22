@@ -68,6 +68,7 @@ async def helper(
         embedding = await generate_embedding(
             text=message,
             configuration=embedding_configuration,
+            task_type="RETRIEVAL_QUERY",  # User query for search
         )
 
     except (

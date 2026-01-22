@@ -40,6 +40,7 @@ motor==3.7.1
 nodeenv==1.9.1
 numpy==2.3.3
 openai==1.91.0
+cohere==5.11.4
 packaging==25.0
 platformdirs==4.4.0
 pluggy==1.6.0

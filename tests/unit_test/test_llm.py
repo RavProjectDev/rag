@@ -256,6 +256,7 @@ def test_generate_prompt_with_context():
                 time_start="00:00",
                 time_end="01:00",
                 name_space="lecture",
+                text_hash="abc123hash",
             ),
             sanity_data=SanityData(
                 id="sanity1",
@@ -270,7 +271,7 @@ def test_generate_prompt_with_context():
             _id="687c65e061b769c8ff78780f",
             text="Faith and reason are complementary.",
             metadata=Metadata(
-                chunk_size=150, time_start="01:00", time_end="02:00", name_space="book"
+                chunk_size=150, time_start="01:00", time_end="02:00", name_space="book", text_hash="def456hash"
             ),
             sanity_data=SanityData(
                 id="sanity2",
@@ -306,6 +307,7 @@ def test_generate_prompt_no_token_limit():
                 time_start="00:00",
                 time_end="01:00",
                 name_space="lecture",
+                text_hash="test_hash_a",
             ),
             sanity_data=SanityData(
                 id="sanity1",
@@ -320,7 +322,7 @@ def test_generate_prompt_no_token_limit():
             _id="687c65e061b769c8ff78780f",
             text="B" * 1000,
             metadata=Metadata(
-                chunk_size=150, time_start="01:00", time_end="02:00", name_space="book"
+                chunk_size=150, time_start="01:00", time_end="02:00", name_space="book", text_hash="test_hash_b"
             ),
             sanity_data=SanityData(
                 id="sanity2",
@@ -350,6 +352,7 @@ def test_generate_prompt_structured_json_format():
                 time_start="00:15:30",
                 time_end="00:16:45",
                 name_space="lecture",
+                text_hash="test_hash_faith",
             ),
             sanity_data=SanityData(
                 id="sanity1",
@@ -368,6 +371,7 @@ def test_generate_prompt_structured_json_format():
                 time_start="00:23:10",
                 time_end=None,  # Test with only start time
                 name_space="book",
+                text_hash="test_hash_halakhic",
             ),
             sanity_data=SanityData(
                 id="sanity2",
@@ -386,6 +390,7 @@ def test_generate_prompt_structured_json_format():
                 time_start=None,  # Test with no timestamp
                 time_end=None,
                 name_space="essay",
+                text_hash="test_hash_prayer",
             ),
             sanity_data=SanityData(
                 id="sanity3",

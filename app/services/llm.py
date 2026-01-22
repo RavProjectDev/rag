@@ -509,8 +509,14 @@ def generate_prompt(
                 source_number += 1
             else:
                 # Original human-readable entry with metadata dump
+                # Exclude text_hash and full_text_id from prompt (internal fields)
+                metadata_dict = doc.metadata.model_dump()
+                filtered_metadata = {
+                    k: v for k, v in metadata_dict.items() 
+                    if k not in ['text_hash', 'full_text_id', 'text_to_embed', 'full_text']
+                }
                 metadata_str = ", ".join(
-                    f"{k}: {v}" for k, v in doc.metadata.model_dump().items()
+                    f"{k}: {v}" for k, v in filtered_metadata.items()
                 )
                 # Add slug explicitly to source line
                 entry = f'"{quote}"\n(Source: slug: {doc.sanity_data.slug}, {metadata_str})'

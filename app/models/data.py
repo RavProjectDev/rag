@@ -7,6 +7,7 @@ class Metadata(BaseModel):
     time_start: str | None = None
     time_end: str | None = None
     name_space: str
+    text_hash: str | None = None  # SHA-256 hash of the text
 
 
 class SanityData(BaseModel):

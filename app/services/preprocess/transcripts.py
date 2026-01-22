@@ -1,3 +1,4 @@
+import hashlib
 import json
 import uuid
 import pysrt
@@ -29,6 +30,19 @@ def _count_tokens(text: str) -> int:
     """Count the number of tokens in text using tiktoken."""
     encoder = _get_encoder()
     return len(encoder.encode(text))
+
+
+def _compute_text_hash(text: str) -> str:
+    """
+    Compute SHA-256 hash of the text.
+    
+    Args:
+        text: The text to hash
+    
+    Returns:
+        Hexadecimal string representation of the SHA-256 hash
+    """
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
 
 def _flatten_subs(subs):
@@ -91,6 +105,10 @@ def build_chunks(subs, name_space, tokens_per_chunk=TOKENS_PER_CHUNK) -> list[Ch
     Uses a "soft limit" approach: once the token limit is exceeded, continues until
     completing the current 6-line segment to avoid creating small orphaned segments.
     
+    Also enforces a minimum chunk size: if remaining entries at the end are below
+    a threshold (e.g., 50% of tokens_per_chunk), they are merged into the previous chunk
+    instead of creating a tiny final chunk.
+    
     Each chunk is independent with its own UUID. The text is embedded as-is,
     while metadata stores fine-grained timestamps as tuples.
 
@@ -107,6 +125,12 @@ def build_chunks(subs, name_space, tokens_per_chunk=TOKENS_PER_CHUNK) -> list[Ch
     
     current_entries = []
     current_tokens = 0
+    
+    # Minimum chunk size threshold (e.g., 50% of target, or absolute minimum like 50 tokens)
+    MIN_CHUNK_SIZE = max(50, tokens_per_chunk // 2)  # At least 50 tokens or 50% of target
+    
+    # Track the last chunk's entries for potential merging
+    last_chunk_entries = None
     
     for i, entry in enumerate(sub_stream):
         # Add entry to current batch
@@ -126,14 +150,26 @@ def build_chunks(subs, name_space, tokens_per_chunk=TOKENS_PER_CHUNK) -> list[Ch
             chunk = _create_chunk_from_entries(current_entries, name_space)
             chunks.append(chunk)
             
+            # Store entries for potential merging with small final chunk
+            last_chunk_entries = current_entries.copy()
+            
             # Reset for next chunk
             current_entries = []
             current_tokens = 0
     
-    # Handle remaining entries
+    # Handle remaining entries with minimum size check
     if current_entries:
-        chunk = _create_chunk_from_entries(current_entries, name_space)
-        chunks.append(chunk)
+        remaining_tokens = sum(entry["tokens"] for entry in current_entries)
+        
+        # If remaining entries are too small, merge into previous chunk
+        if remaining_tokens < MIN_CHUNK_SIZE and last_chunk_entries is not None:
+            # Merge remaining entries into the last chunk
+            merged_entries = last_chunk_entries + current_entries
+            chunks[-1] = _create_chunk_from_entries(merged_entries, name_space)
+        else:
+            # Remaining entries are substantial enough to be their own chunk
+            chunk = _create_chunk_from_entries(current_entries, name_space)
+            chunks.append(chunk)
     
     return chunks
 
@@ -153,6 +189,9 @@ def _create_chunk_from_entries(entries: list[dict], name_space: str) -> Chunk:
     # Count tokens
     embed_tokens = sum(entry["tokens"] for entry in entries)
     
+    # Compute SHA-256 hash of the text to embed
+    text_hash = _compute_text_hash(text_to_embed)
+    
     return Chunk(
         full_text_id=uuid.uuid4(),  # Each chunk gets its own UUID
         time_start=time_start,
@@ -162,6 +201,7 @@ def _create_chunk_from_entries(entries: list[dict], name_space: str) -> Chunk:
         chunk_size=embed_tokens,  # Tokens in this chunk
         embed_size=embed_tokens,  # Same as chunk_size for fixed-size chunking
         name_space=name_space,
+        text_hash=text_hash,
     )
 
 
@@ -170,6 +210,9 @@ def build_chunks_divided(subs, name_space, chunk_size=DIVIDED_CHUNK_SIZE, subdiv
     DIVIDED chunking strategy: accumulate subtitles to chunk_size, then subdivide.
     Uses a "soft limit" approach: once the token limit is exceeded, continues until
     completing the current 6-line segment to avoid creating small orphaned segments.
+    
+    Also enforces a minimum chunk size: if remaining entries at the end are below
+    a threshold, they are merged into the previous chunk instead of creating tiny final chunks.
     
     Creates a main chunk of chunk_size tokens, then divides it into N subdivisions.
     All subdivisions share the same full_text_id and full_text metadata, but each
@@ -190,6 +233,14 @@ def build_chunks_divided(subs, name_space, chunk_size=DIVIDED_CHUNK_SIZE, subdiv
     current_entries = []
     current_tokens = 0
     
+    # Minimum chunk size threshold - for DIVIDED, we need enough tokens to meaningfully subdivide
+    # Use a higher threshold since we're dividing further (e.g., 25% of chunk_size)
+    MIN_CHUNK_SIZE = max(100, chunk_size // 4)  # At least 100 tokens or 25% of chunk_size
+    
+    # Track the last chunk's entries and number of subdivisions for potential merging
+    last_chunk_entries = None
+    last_chunk_subdivisions_count = 0
+    
     for i, entry in enumerate(sub_stream):
         # Add entry to current batch
         current_entries.append(entry)
@@ -208,14 +259,32 @@ def build_chunks_divided(subs, name_space, chunk_size=DIVIDED_CHUNK_SIZE, subdiv
             subdivided_chunks = _subdivide_entries(current_entries, name_space, subdivisions)
             chunks.extend(subdivided_chunks)
             
+            # Store entries and count for potential merging with small final chunk
+            last_chunk_entries = current_entries.copy()
+            last_chunk_subdivisions_count = len(subdivided_chunks)
+            
             # Reset for next main chunk
             current_entries = []
             current_tokens = 0
     
-    # Handle remaining entries
+    # Handle remaining entries with minimum size check
     if current_entries:
-        subdivided_chunks = _subdivide_entries(current_entries, name_space, subdivisions)
-        chunks.extend(subdivided_chunks)
+        remaining_tokens = sum(entry["tokens"] for entry in current_entries)
+        
+        # If remaining entries are too small, merge into previous chunk
+        if remaining_tokens < MIN_CHUNK_SIZE and last_chunk_entries is not None:
+            # Merge remaining entries into the last chunk and re-subdivide
+            merged_entries = last_chunk_entries + current_entries
+            # Remove the old subdivided chunks and replace with new ones
+            # Remove the last N chunks (the subdivisions from the previous chunk)
+            chunks = chunks[:-last_chunk_subdivisions_count]
+            # Create new subdivided chunks from merged entries
+            subdivided_chunks = _subdivide_entries(merged_entries, name_space, subdivisions)
+            chunks.extend(subdivided_chunks)
+        else:
+            # Remaining entries are substantial enough to be their own chunk
+            subdivided_chunks = _subdivide_entries(current_entries, name_space, subdivisions)
+            chunks.extend(subdivided_chunks)
     
     return chunks
 
@@ -267,6 +336,9 @@ def _subdivide_entries(entries: list[dict], name_space: str, subdivisions: int) 
         text_to_embed = " ".join(entry["text"] for entry in subdivision_entries)
         embed_tokens = sum(entry["tokens"] for entry in subdivision_entries)
         
+        # Compute SHA-256 hash of the text to embed
+        text_hash = _compute_text_hash(text_to_embed)
+        
         chunk = Chunk(
             full_text_id=shared_text_id,  # SHARED across all subdivisions
             time_start=time_start,  # Same start/end for all subdivisions
@@ -276,6 +348,7 @@ def _subdivide_entries(entries: list[dict], name_space: str, subdivisions: int) 
             chunk_size=total_tokens,  # SHARED - total tokens in main chunk
             embed_size=embed_tokens,  # UNIQUE - tokens in this subdivision
             name_space=name_space,
+            text_hash=text_hash,
         )
         chunks.append(chunk)
     
@@ -344,6 +417,9 @@ def build_chunks_divided_txt(text: str, name_space: str, chunk_size=DIVIDED_CHUN
             text_to_embed = encoder.decode(sub_tokens)
             sub_token_count = len(sub_tokens)
             
+            # Compute SHA-256 hash of the text to embed
+            text_hash = _compute_text_hash(text_to_embed)
+            
             chunk = Chunk(
                 full_text_id=shared_text_id,  # SHARED across subdivisions
                 name_space=name_space,
@@ -353,6 +429,7 @@ def build_chunks_divided_txt(text: str, name_space: str, chunk_size=DIVIDED_CHUN
                 time_end=None,
                 full_text=main_chunk_text,  # SHARED - full main chunk text
                 embed_size=sub_token_count,  # UNIQUE - tokens in this subdivision
+                text_hash=text_hash,
             )
             chunks.append(chunk)
     
@@ -385,6 +462,9 @@ def chunk_txt(content: tuple[str, str], strategy: ChunkingStrategy = ChunkingStr
             chunk_tokens = tokens[i : i + TOKENS_PER_CHUNK]
             chunk_text = encoder.decode(chunk_tokens)
             chunk_token_count = len(chunk_tokens)
+            
+            # Compute SHA-256 hash of the text to embed
+            text_hash = _compute_text_hash(chunk_text)
 
             chunk = Chunk(
                 full_text_id=uuid.uuid4(),  # Independent UUID
@@ -395,6 +475,7 @@ def chunk_txt(content: tuple[str, str], strategy: ChunkingStrategy = ChunkingStr
                 time_end=None,
                 full_text=chunk_text,  # Same as text_to_embed for TXT
                 embed_size=chunk_token_count,
+                text_hash=text_hash,
             )
             chunks.append(chunk)
 

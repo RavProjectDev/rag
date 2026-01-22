@@ -3,7 +3,7 @@ from fastapi import Request, Depends
 from rag.app.core import config
 
 #SETTINGS
-from rag.app.schemas.data import LLMModel, EmbeddingConfiguration
+from rag.app.schemas.data import LLMModel, EmbeddingConfiguration, ChunkingStrategy
 from rag.app.db.connections import EmbeddingConnection, MetricsConnection
 
 
@@ -23,6 +23,10 @@ def get_embedding_configuration() -> EmbeddingConfiguration:
 
 def get_llm_configuration() -> LLMModel:
     return config.get_settings().llm_configuration
+
+
+def get_chunking_strategy() -> ChunkingStrategy:
+    return config.get_settings().chunking_strategy
 
 
 def get_settings_dependency():

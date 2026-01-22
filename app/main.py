@@ -51,23 +51,37 @@ async def lifespan(app: FastAPI):
         if settings.database_configuration == DataBaseConfiguration.PINECONE:
             required_pinecone = {
                 "pinecone_api_key": settings.pinecone_api_key,
-                "pinecone_index_name": settings.pinecone_index_name,
             }
             missing = [k for k, v in required_pinecone.items() if not v]
             if missing:
                 raise ValueError(
                     f"Missing required Pinecone settings: {', '.join(missing)}"
                 )
-            # Use chunking strategy as namespace if not explicitly configured
+            
+            # Index name is based on embedding model
+            # Use configured index name if provided, otherwise derive from embedding model
+            index_name = settings.pinecone_index_name or settings.embedding_configuration.value
+            
+            # Namespace is based on chunking strategy
+            # Use configured namespace if provided, otherwise use chunking strategy
             namespace = settings.pinecone_namespace or settings.chunking_strategy.value
-            logger.info(f"Pinecone namespace: {namespace} (based on chunking_strategy: {settings.chunking_strategy.value})")
+            
+            logger.info(
+                f"[PINECONE CONFIG] index={index_name} (embedding_model={settings.embedding_configuration.value}), "
+                f"namespace={namespace} (chunking_strategy={settings.chunking_strategy.value})"
+            )
+            
+            # Get chunks collection for tracking (even when using Pinecone)
+            chunks_collection = db["chunks"]
+            logger.info(f"MongoDB chunks collection: chunks (for Pinecone chunk tracking)")
             
             embedding_connection = PineconeEmbeddingStore(
                 api_key=settings.pinecone_api_key,
-                index_name=settings.pinecone_index_name,
+                index_name=index_name,
                 environment=settings.pinecone_environment,
                 namespace=namespace,
                 host=settings.pinecone_host,
+                chunks_collection=chunks_collection,
             )
         else:
             # For MongoDB, append chunking strategy to collection name if not using default collection
@@ -78,10 +92,13 @@ async def lifespan(app: FastAPI):
             
             logger.info(f"MongoDB collection: {collection_name} (based on chunking_strategy: {settings.chunking_strategy.value})")
             vector_embedding_collection = db[collection_name]
+            chunks_collection = db["chunks"]
+            logger.info(f"MongoDB chunks collection: chunks")
             embedding_connection = MongoEmbeddingStore(
                 collection=vector_embedding_collection,
                 index=settings.collection_index,
                 vector_path=settings.vector_path,
+                chunks_collection=chunks_collection,
             )
         metrics_connection = MongoMetricsConnection(
             collection=metrics_collection,
@@ -106,6 +123,7 @@ async def lifespan(app: FastAPI):
             start_scheduler(
                 connection=embedding_connection,
                 embedding_configuration=settings.embedding_configuration,
+                chunking_strategy=settings.chunking_strategy,
             )
         else:
             logger.info(

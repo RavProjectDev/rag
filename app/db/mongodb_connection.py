@@ -26,10 +26,11 @@ logger = logging.getLogger(__name__)
 
 
 class MongoEmbeddingStore(EmbeddingConnection):
-    def __init__(self, collection, index: str, vector_path: str):
+    def __init__(self, collection, index: str, vector_path: str, chunks_collection: AsyncIOMotorCollection | None = None):
         self.collection = collection
         self.index = index
         self.vector_path = vector_path
+        self.chunks_collection = chunks_collection
 
     async def insert(self, embedded_data: list[VectorEmbedding]):
         ids_to_insert = list({emb.sanity_data.id for emb in embedded_data})
@@ -48,12 +49,100 @@ class MongoEmbeddingStore(EmbeddingConnection):
             documents = [emb.to_dict() for emb in embeddings_to_insert]
             if documents:
                 await self.collection.insert_many(documents)
+                
+                # Track chunks in separate collection if configured
+                if self.chunks_collection is not None:
+                    await self._track_chunks(embeddings_to_insert)
+                    
         except OperationFailure as e:
             raise InsertException(
                 f"Failed to insert documents, Mongo config error: {e}"
             )
         except Exception as e:
             raise DataBaseException(f"Failed to insert documents: {e}")
+    
+    async def _track_chunks(self, embeddings: list[VectorEmbedding]):
+        """
+        Track chunks in a separate collection for deduplication and indexing.
+        
+        Each chunk record contains all metadata from Pinecone:
+        - _id: SHA-256 hash of the chunk text
+        - text_id: The full_text_id (UUID) that groups related chunks
+        - chunk_index: Global sequential index across all chunks
+        - text: The chunk text (or JSON string for SRT)
+        - chunk_size: Token count
+        - name_space: Document identifier
+        - sanity_id, sanity_slug, sanity_title, sanity_transcriptURL, sanity_hash
+        - time_start, time_end (optional for SRT)
+        - sanity_updated_at (optional)
+        """
+        if not embeddings:
+            return
+        
+        try:
+            import json
+            
+            # Get the maximum existing chunk_index globally (across all chunks)
+            max_index_doc = await self.chunks_collection.find_one(
+                {},
+                sort=[("chunk_index", -1)]
+            )
+            start_index = (max_index_doc["chunk_index"] + 1) if max_index_doc else 0
+            
+            # Create chunk records with all metadata
+            chunk_records = []
+            for i, emb in enumerate(embeddings):
+                metadata = emb.metadata
+                sanity = emb.sanity_data
+                text_id = str(metadata.full_text_id)
+                
+                # Prepare text value (same logic as Pinecone)
+                if isinstance(metadata.full_text, str):
+                    text_value = metadata.full_text
+                elif isinstance(metadata.full_text, list):
+                    text_value = json.dumps(metadata.full_text)
+                else:
+                    text_value = str(metadata.full_text)
+                
+                # Build chunk record with all metadata
+                chunk_record = {
+                    "_id": metadata.text_hash,  # SHA-256 hash as primary key
+                    "text_id": text_id,
+                    "chunk_index": start_index + i,
+                    "text": text_value,
+                    "chunk_size": metadata.chunk_size,
+                    "name_space": metadata.name_space,
+                    "embedding_model": emb.embedding_model,
+                    "chunking_strategy": emb.chunking_strategy,
+                    "sanity_id": sanity.id,
+                    "sanity_slug": sanity.slug,
+                    "sanity_title": sanity.title,
+                    "sanity_transcriptURL": str(sanity.transcriptURL),
+                    "sanity_hash": sanity.hash,
+                }
+                
+                # Add optional fields only if they're not None
+                if metadata.time_start is not None:
+                    chunk_record["time_start"] = metadata.time_start
+                if metadata.time_end is not None:
+                    chunk_record["time_end"] = metadata.time_end
+                if sanity.updated_at is not None:
+                    chunk_record["sanity_updated_at"] = sanity.updated_at
+                
+                chunk_records.append(chunk_record)
+            
+            # Insert chunk records (use insert_many with ordered=False to skip duplicates)
+            if chunk_records:
+                try:
+                    await self.chunks_collection.insert_many(chunk_records, ordered=False)
+                    logger.info(f"[CHUNKS] Successfully tracked {len(chunk_records)} chunks with full metadata (indices {start_index}-{start_index + len(chunk_records) - 1})")
+                except Exception as e:
+                    # Some chunks might already exist (duplicate hashes), which is fine
+                    logger.debug(f"[CHUNKS] Some chunks already exist (duplicates): {e}")
+                    
+        except Exception as e:
+            logger.warning(f"[CHUNKS] Failed to track chunks: {e}", exc_info=True)
+            # Don't raise - chunk tracking is supplementary, shouldn't block main insert
 
     async def retrieve(
         self,
