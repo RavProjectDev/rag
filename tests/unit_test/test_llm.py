@@ -237,11 +237,12 @@ async def test_stream_llm_response_invalid_chunk(mock_get_client):
 def test_generate_prompt_no_context():
     user_question = "What is Rav Soloveitchik's view on modernity?"
     data = []
-    prompt = generate_prompt(user_question, data)
+    prompt, source_list = generate_prompt(user_question, data)
     assert "You are a Rav Soloveitchik expert" in prompt.value
     assert user_question in prompt.value
     assert "# Context" in prompt.value
     assert not any("Source:" in prompt.value for _ in data)
+    assert source_list == []  # No sources when no data
 
 
 def test_generate_prompt_with_context():
@@ -255,6 +256,7 @@ def test_generate_prompt_with_context():
                 time_start="00:00",
                 time_end="01:00",
                 name_space="lecture",
+                text_hash="abc123hash",
             ),
             sanity_data=SanityData(
                 id="sanity1",
@@ -269,7 +271,7 @@ def test_generate_prompt_with_context():
             _id="687c65e061b769c8ff78780f",
             text="Faith and reason are complementary.",
             metadata=Metadata(
-                chunk_size=150, time_start="01:00", time_end="02:00", name_space="book"
+                chunk_size=150, time_start="01:00", time_end="02:00", name_space="book", text_hash="def456hash"
             ),
             sanity_data=SanityData(
                 id="sanity2",
@@ -281,7 +283,7 @@ def test_generate_prompt_with_context():
             score=0.8,
         ),
     ]
-    prompt = generate_prompt(user_question, data)
+    prompt, source_list = generate_prompt(user_question, data)
     assert (
         '"Modernity must be approached with critical engagement."\n(Source: slug: lonely-man, chunk_size: 100, time_start: 00:00, time_end: 01:00, name_space: lecture)'
         in prompt.value
@@ -305,6 +307,7 @@ def test_generate_prompt_no_token_limit():
                 time_start="00:00",
                 time_end="01:00",
                 name_space="lecture",
+                text_hash="test_hash_a",
             ),
             sanity_data=SanityData(
                 id="sanity1",
@@ -319,7 +322,7 @@ def test_generate_prompt_no_token_limit():
             _id="687c65e061b769c8ff78780f",
             text="B" * 1000,
             metadata=Metadata(
-                chunk_size=150, time_start="01:00", time_end="02:00", name_space="book"
+                chunk_size=150, time_start="01:00", time_end="02:00", name_space="book", text_hash="test_hash_b"
             ),
             sanity_data=SanityData(
                 id="sanity2",
@@ -331,7 +334,7 @@ def test_generate_prompt_no_token_limit():
             score=0.8,
         ),
     ]
-    prompt = generate_prompt(user_question, data)
+    prompt, source_list = generate_prompt(user_question, data)
     assert f'{"A" * 50}' in prompt.value
     assert "test-source" in prompt.value
     assert "test-source-2" in prompt.value
@@ -349,6 +352,7 @@ def test_generate_prompt_structured_json_format():
                 time_start="00:15:30",
                 time_end="00:16:45",
                 name_space="lecture",
+                text_hash="test_hash_faith",
             ),
             sanity_data=SanityData(
                 id="sanity1",
@@ -367,6 +371,7 @@ def test_generate_prompt_structured_json_format():
                 time_start="00:23:10",
                 time_end=None,  # Test with only start time
                 name_space="book",
+                text_hash="test_hash_halakhic",
             ),
             sanity_data=SanityData(
                 id="sanity2",
@@ -385,6 +390,7 @@ def test_generate_prompt_structured_json_format():
                 time_start=None,  # Test with no timestamp
                 time_end=None,
                 name_space="essay",
+                text_hash="test_hash_prayer",
             ),
             sanity_data=SanityData(
                 id="sanity3",
@@ -397,22 +403,37 @@ def test_generate_prompt_structured_json_format():
         ),
     ]
     
-    prompt = generate_prompt(user_question, data, prompt_id=PromptType.STRUCTURED_JSON)
+    prompt, source_list = generate_prompt(user_question, data, prompt_id=PromptType.STRUCTURED_JSON)
     
     # Verify it uses the structured_json template
     assert "output ONLY a valid JSON object" in prompt.value
-    assert "MOST RELEVANT quoted sources" in prompt.value
+    assert "source_numbers" in prompt.value  # JSON field for source numbers
     assert prompt.id == PromptType.STRUCTURED_JSON.value
     
-    # Verify JSON-formatted context entries with proper escaping
+    # Verify numbered source format (not JSON in context anymore)
     # Entry 1: with start-end timestamp
-    assert '{"slug": "lonely-man-of-faith", "timestamp": "00:15:30-00:16:45", "text": "Faith requires intellectual engagement and commitment."}' in prompt.value
+    assert "[1]" in prompt.value
+    assert "Faith requires intellectual engagement and commitment." in prompt.value
+    assert "lonely-man-of-faith" in prompt.value
+    assert "00:15:30-00:16:45" in prompt.value
     
     # Entry 2: with only start timestamp
-    assert '{"slug": "halakhic-man-lecture", "timestamp": "00:23:10", "text": "Halakhic man embodies both the rational and the spiritual."}' in prompt.value
+    assert "[2]" in prompt.value
+    assert "Halakhic man embodies both the rational and the spiritual." in prompt.value
+    assert "halakhic-man-lecture" in prompt.value
+    assert "00:23:10" in prompt.value
     
     # Entry 3: with null timestamp
-    assert '{"slug": "prayer-essay", "timestamp": null, "text": "Prayer is an expression of human vulnerability."}' in prompt.value
+    assert "[3]" in prompt.value
+    assert "Prayer is an expression of human vulnerability." in prompt.value
+    assert "prayer-essay" in prompt.value
     
     # Verify user question is included
     assert user_question in prompt.value
+    
+    # Verify source_list is populated correctly
+    assert len(source_list) == 3
+    assert source_list[0]["number"] == 1
+    assert source_list[0]["slug"] == "lonely-man-of-faith"
+    assert source_list[1]["number"] == 2
+    assert source_list[2]["number"] == 3

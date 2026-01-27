@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, HttpUrl
-from typing import Optional
+from typing import Optional, Union, List, Tuple
 
 
 class Metadata(BaseModel):
@@ -7,6 +7,7 @@ class Metadata(BaseModel):
     time_start: str | None = None
     time_end: str | None = None
     name_space: str
+    text_hash: str | None = None  # SHA-256 hash of the text
 
 
 class SanityData(BaseModel):
@@ -35,7 +36,7 @@ class Prompt(BaseModel):
 
 class DocumentModel(BaseModel):
     id: str = Field(..., alias="_id")  # e.g. {"$oid": "687c65e061b769c8ff78779f"}
-    text: str
+    text: Union[str, List[Tuple[str, Tuple[Optional[str], Optional[str]]]]]
     metadata: Metadata
     sanity_data: SanityData
     score: float

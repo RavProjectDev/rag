@@ -56,27 +56,28 @@ rag/
 - Google Cloud credentials (for Gemini embeddings)
 
 ### Environment Variables
-Create a `.env` file with the following variables:
+Create a `.env` file by copying the example file:
 
-```env
-# OpenAI Configuration
-OPENAI_API_KEY=your_openai_api_key
-
-# Google Cloud Configuration
-GOOGLE_CLOUD_PROJECT_ID=your_project_id
-GEMINI_API_KEY=your_gemini_api_key
-VERTEX_REGION=us-central1
-
-# MongoDB Configuration
-MONGODB_URI=mongodb://localhost:27017
-MONGODB_DB_NAME=rag_database
-MONGODB_VECTOR_COLLECTION=embeddings
-COLLECTION_INDEX=vector_index
-
-# Optional Configuration
-EXTERNAL_API_TIMEOUT=60
-ENVIRONMENT=PRD  # or TEST
+```bash
+cp .env.example .env
 ```
+
+Then edit `.env` and fill in your actual values. See `.env.example` for a complete list of all available environment variables with descriptions.
+
+**Required variables:**
+- `OPENAI_API_KEY` - OpenAI API key for LLM chat completions
+- `GOOGLE_CLOUD_PROJECT_ID` - Google Cloud Project ID
+- `GEMINI_API_KEY` - Gemini API key for embeddings
+- `VERTEX_REGION` - Vertex AI region (e.g., us-central1)
+- `MONGODB_URI` - MongoDB connection string
+- `MONGODB_DB_NAME` - MongoDB database name
+- `MONGODB_VECTOR_COLLECTION` - MongoDB collection for embeddings
+
+**Optional variables** (have defaults):
+- `ENVIRONMENT` - PRD, STG, or TEST (default: STG)
+- `AUTH_MODE` - dev or prd (default: dev)
+- `EXTERNAL_API_TIMEOUT` - API timeout in seconds (default: 60)
+- And many more - see `.env.example` for full documentation
 
 ### Local Development
 
@@ -88,7 +89,11 @@ ENVIRONMENT=PRD  # or TEST
 
 2. **Install dependencies**
    ```bash
+   # Install production dependencies
    pip install -r requirements.txt
+   
+   # For development, also install dev dependencies
+   pip install -r requirements-dev.txt
    ```
 
 3. **Run the application**

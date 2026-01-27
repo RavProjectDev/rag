@@ -26,9 +26,11 @@ from rag.app.db.mongodb_connection import (
     MongoMetricsConnection,
     MongoExceptionsLogger,
 )
+from rag.app.db.pinecone_connection import PineconeEmbeddingStore
 from rag.app.core.config import get_settings, Environment
 from rag.app.core.scheduler import start_scheduler
 from rag.app.schemas.response import ErrorResponse
+from rag.app.schemas.data import DataBaseConfiguration
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -42,15 +44,62 @@ async def lifespan(app: FastAPI):
     )
     try:
         db = client[settings.mongodb_db_name]
-        vector_embedding_collection = db[settings.mongodb_vector_collection]
         metrics_collection = db[settings.metrics_collection]
         exceptions_collection = db[settings.exceptions_collection]
 
-        mongo_connection = MongoEmbeddingStore(
-            collection=vector_embedding_collection,
-            index=settings.collection_index,
-            vector_path=settings.vector_path,
-        )
+        # Embedding connection selection
+        if settings.database_configuration == DataBaseConfiguration.PINECONE:
+            required_pinecone = {
+                "pinecone_api_key": settings.pinecone_api_key,
+            }
+            missing = [k for k, v in required_pinecone.items() if not v]
+            if missing:
+                raise ValueError(
+                    f"Missing required Pinecone settings: {', '.join(missing)}"
+                )
+            
+            # Index name is based on embedding model
+            # Use configured index name if provided, otherwise derive from embedding model
+            index_name = settings.pinecone_index_name or settings.embedding_configuration.value
+            
+            # Namespace is based on chunking strategy
+            # Use configured namespace if provided, otherwise use chunking strategy
+            namespace = settings.pinecone_namespace or settings.chunking_strategy.value
+            
+            logger.info(
+                f"[PINECONE CONFIG] index={index_name} (embedding_model={settings.embedding_configuration.value}), "
+                f"namespace={namespace} (chunking_strategy={settings.chunking_strategy.value})"
+            )
+            
+            # Get chunks collection for tracking (even when using Pinecone)
+            chunks_collection = db["chunks"]
+            logger.info(f"MongoDB chunks collection: chunks (for Pinecone chunk tracking)")
+            
+            embedding_connection = PineconeEmbeddingStore(
+                api_key=settings.pinecone_api_key,
+                index_name=index_name,
+                environment=settings.pinecone_environment,
+                namespace=namespace,
+                host=settings.pinecone_host,
+                chunks_collection=chunks_collection,
+            )
+        else:
+            # For MongoDB, append chunking strategy to collection name if not using default collection
+            collection_name = settings.mongodb_vector_collection
+            # If collection doesn't already include strategy, append it
+            if settings.chunking_strategy.value not in collection_name:
+                collection_name = f"{collection_name}_{settings.chunking_strategy.value}"
+            
+            logger.info(f"MongoDB collection: {collection_name} (based on chunking_strategy: {settings.chunking_strategy.value})")
+            vector_embedding_collection = db[collection_name]
+            chunks_collection = db["chunks"]
+            logger.info(f"MongoDB chunks collection: chunks")
+            embedding_connection = MongoEmbeddingStore(
+                collection=vector_embedding_collection,
+                index=settings.collection_index,
+                vector_path=settings.vector_path,
+                chunks_collection=chunks_collection,
+            )
         metrics_connection = MongoMetricsConnection(
             collection=metrics_collection,
         )
@@ -58,25 +107,35 @@ async def lifespan(app: FastAPI):
             collection=exceptions_collection,
         )
 
-        app.state.mongo_conn = mongo_connection
+        app.state.embedding_conn = embedding_connection
+        # Backwards compatibility for code still accessing mongo_conn
+        app.state.mongo_conn = embedding_connection
         app.state.metrics_connection = metrics_connection
         app.state.exceptions_logger = exceptions_logger
         app.state.db_client = db
         
         # Only run the sync scheduler in production
-        if settings.environment == Environment.PRD:
+        if (
+            settings.environment == Environment.PRD
+            and settings.database_configuration == DataBaseConfiguration.MONGO
+        ):
             logger.info("Starting sync scheduler (PRD environment)")
             start_scheduler(
-                connection=mongo_connection,
+                connection=embedding_connection,
                 embedding_configuration=settings.embedding_configuration,
+                chunking_strategy=settings.chunking_strategy,
             )
         else:
-            logger.info(f"Skipping sync scheduler (environment: {settings.environment})")
+            logger.info(
+                "Skipping sync scheduler (environment=%s, db=%s)",
+                settings.environment,
+                settings.database_configuration.value,
+            )
         
         yield
 
     except Exception as e:
-        logger.error(f"Failed to initialize MongoDB: {e}")
+        logger.error(f"Failed to initialize application resources: {e}")
         raise
     finally:
         client.close()

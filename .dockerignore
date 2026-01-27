@@ -1,2 +1,4 @@
 *.json
 !gcloud-key.json
+dev_outputs/
+scripts/

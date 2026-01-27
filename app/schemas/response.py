@@ -8,12 +8,14 @@ class TranscriptData(BaseModel):
     sanity_data: SanityData
     metadata: Metadata
     score: float
+    text_id: str
 
     def to_dict(self) -> dict:
         return {
             **self.metadata.model_dump(),
             "sanity_data": self.sanity_data.to_dict(),
             "score": self.score,
+            "text_id": self.text_id,
         }
 
 
@@ -21,6 +23,7 @@ class SourceItem(BaseModel):
     slug: str
     timestamp: Optional[str] = None
     text: str
+    text_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

@@ -63,11 +63,13 @@ async def setup_connections() -> (
 
     db = client[os.environ["MONGODB_DB_NAME"]]
     vector_embedding_collection = db[os.environ["MONGODB_VECTOR_COLLECTION"]]
+    chunks_collection = db["chunks"]
 
     mongo_connection = MongoEmbeddingStore(
         collection=vector_embedding_collection,
         index=os.environ["COLLECTION_INDEX"],
         vector_path=os.environ["VECTOR_PATH"],
+        chunks_collection=chunks_collection,
     )
 
     embedding_configuration = EmbeddingConfiguration.GEMINI
@@ -88,6 +90,7 @@ async def generate_prompts(
     embedding = await generate_embedding(
         text=cleaned_question,
         configuration=embedding_config,
+        task_type="RETRIEVAL_QUERY",  # User query for search
     )
 
     if embedding is None:
@@ -99,7 +102,8 @@ async def generate_prompts(
     # Generate prompts
     prompts = []
     for prompt_key in PROMPT_KEYS:
-        prompt = generate_prompt(cleaned_question, data, prompt_id=prompt_key)
+        # Note: request_id is optional, not passing it here since this is a batch script
+        prompt, _ = generate_prompt(cleaned_question, data, prompt_id=prompt_key, request_id=None)
         prompts.append(prompt)
 
     return prompts

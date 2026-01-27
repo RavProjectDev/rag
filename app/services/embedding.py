@@ -15,13 +15,14 @@ from google.api_core.exceptions import (
 )
 from google.auth import default
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
+import cohere
+from openai import AsyncOpenAI
 
 from rag.app.core.config import get_settings, Environment
 from rag.app.exceptions.embedding import *
 from rag.app.schemas.data import EmbeddingConfiguration, Embedding
 
 # Constants
-DEFAULT_EMBEDDING_DIMENSIONALITY = 784
 DEFAULT_TIMEOUT_SECONDS = 10
 MOCK_EMBEDDING_DIMENSIONALITY = 784
 
@@ -35,7 +36,6 @@ class EmbeddingServiceConfig:
     model_name: str = "gemini-embedding-001"
     default_task: str = "RETRIEVAL_DOCUMENT"
     timeout: int = DEFAULT_TIMEOUT_SECONDS
-    output_dimensionality: int = DEFAULT_EMBEDDING_DIMENSIONALITY
 
 
 @lru_cache(maxsize=1)
@@ -106,9 +106,7 @@ async def gemini_embedding(text_data: str, task_type: str = "RETRIEVAL_DOCUMENT"
     text_input = TextEmbeddingInput(text=text_data, task_type=task_type)
 
     def call_model():
-        return model.get_embeddings(
-            [text_input], output_dimensionality=config.output_dimensionality
-        )
+        return model.get_embeddings([text_input])
 
     # Use a single shared executor for better resource management
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -146,6 +144,101 @@ def generate_mock_embedding(text: str) -> List[float]:
     seed = hash(text) % (2**32)
     random.seed(seed)
     return [random.uniform(-1, 1) for _ in range(MOCK_EMBEDDING_DIMENSIONALITY)]
+
+
+async def cohere_embedding(text_data: str, task_type: str = "RETRIEVAL_DOCUMENT") -> List[float]:
+    """
+    Generate embeddings using Cohere's embed-multilingual-v3.0 model.
+
+    Args:
+        text_data: Text to generate embeddings for
+        task_type: The task type for Cohere embeddings. Options:
+                  - "RETRIEVAL_QUERY": For user queries/questions (maps to "search_query")
+                  - "RETRIEVAL_DOCUMENT": For documents being indexed (maps to "search_document")
+
+    Returns:
+        List of float values representing the embedding
+
+    Raises:
+        EmbeddingTimeOutException: If the request times out
+        EmbeddingAPIException: For API-related errors
+        EmbeddingException: For other unexpected errors
+    """
+    logger = logging.getLogger(__name__)
+    model_name = "embed-multilingual-v3.0"
+    logger.info(f"[EMBEDDING] Starting Cohere embedding generation, model={model_name}, text_length={len(text_data)}, task_type={task_type}")
+    
+    settings = get_settings()
+    if not settings.cohere_api_key:
+        raise EmbeddingException("Cohere API key not configured")
+    
+    # Map task_type to Cohere's input_type
+    input_type_map = {
+        "RETRIEVAL_QUERY": "search_query",
+        "RETRIEVAL_DOCUMENT": "search_document"
+    }
+    input_type = input_type_map.get(task_type, "search_document")
+    
+    try:
+        co = cohere.Client(settings.cohere_api_key)
+        logger.info(f"[EMBEDDING] Calling Cohere API with model={model_name}, input_type={input_type}")
+        
+        response = co.embed(
+            texts=[text_data],
+            model=model_name,
+            input_type=input_type,
+            embedding_types=["float"]
+        )
+        
+        vector = response.embeddings.float[0]
+        logger.info(f"[EMBEDDING] Successfully generated Cohere embedding, dimension={len(vector)}")
+        return vector
+        
+    except Exception as e:
+        logger.error(f"[EMBEDDING ERROR] Cohere API error: {str(e)}", exc_info=True)
+        raise EmbeddingAPIException(f"Cohere API error: {str(e)}")
+
+
+async def openai_embedding(text_data: str, task_type: str = "RETRIEVAL_DOCUMENT") -> List[float]:
+    """
+    Generate embeddings using OpenAI's text-embedding-3-large model.
+
+    Args:
+        text_data: Text to generate embeddings for
+        task_type: The task type (currently not used by OpenAI API, kept for consistency)
+
+    Returns:
+        List of float values representing the embedding
+
+    Raises:
+        EmbeddingTimeOutException: If the request times out
+        EmbeddingAPIException: For API-related errors
+        EmbeddingException: For other unexpected errors
+    """
+    logger = logging.getLogger(__name__)
+    model_name = "text-embedding-3-large"
+    logger.info(f"[EMBEDDING] Starting OpenAI embedding generation, model={model_name}, text_length={len(text_data)}, task_type={task_type}")
+    
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise EmbeddingException("OpenAI API key not configured")
+    
+    try:
+        client = AsyncOpenAI(api_key=settings.openai_api_key)
+        logger.info(f"[EMBEDDING] Calling OpenAI API with model={model_name}")
+        
+        response = await client.embeddings.create(
+            input=text_data,
+            model=model_name
+        )
+        
+        vector = response.data[0].embedding
+        logger.info(f"[EMBEDDING] Successfully generated OpenAI embedding, dimension={len(vector)}")
+        return vector
+        
+    except Exception as e:
+        logger.error(f"[EMBEDDING ERROR] OpenAI API error: {str(e)}", exc_info=True)
+        raise EmbeddingAPIException(f"OpenAI API error: {str(e)}")
 
 
 async def generate_embedding(
@@ -190,6 +283,12 @@ async def generate_embedding(
         if configuration == EmbeddingConfiguration.GEMINI:
             logger.info(f"[EMBEDDING SERVICE] Using Gemini configuration")
             vector = await gemini_embedding(text, task_type=task_type)
+        elif configuration == EmbeddingConfiguration.COHERE:
+            logger.info(f"[EMBEDDING SERVICE] Using Cohere configuration")
+            vector = await cohere_embedding(text, task_type=task_type)
+        elif configuration == EmbeddingConfiguration.OPENAI:
+            logger.info(f"[EMBEDDING SERVICE] Using OpenAI configuration")
+            vector = await openai_embedding(text, task_type=task_type)
         elif configuration == EmbeddingConfiguration.MOCK:
             logger.info(f"[EMBEDDING SERVICE] Using Mock configuration")
             vector = generate_mock_embedding(text)

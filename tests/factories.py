@@ -1,3 +1,4 @@
+import hashlib
 import random
 import string
 import uuid
@@ -44,13 +45,15 @@ def random_srt_time():
 
 
 def make_chunk(randomize=False, include_times=False, **overrides):
+    text_to_embed = random_string(50) if randomize else "default text"
     data = {
         "full_text_id": uuid.uuid4(),
         "full_text": random_string(50) if randomize else "default text",
-        "text_to_embed": random_string(50) if randomize else "default text",
+        "text_to_embed": text_to_embed,
         "chunk_size": random.randint(50, 200) if randomize else 100,
         "name_space": random_string(15) if randomize else "default namespace",
         "embed_size": 50,
+        "text_hash": hashlib.sha256(text_to_embed.encode('utf-8')).hexdigest(),
     }
 
     if include_times:
@@ -67,7 +70,7 @@ def make_vector_embedding(
     randomize_sanity_data=False,
     **overrides,
 ):
-    vector_length = 748
+    vector_length = 3072  # Gemini default dimension
     data = {
         "vector": (
             [random.uniform(-1, 1) for _ in range(vector_length)]
@@ -77,6 +80,8 @@ def make_vector_embedding(
         "dimension": vector_length,
         "metadata": make_chunk(randomize=randomize_metadata),
         "sanity_data": make_sanity_data(randomize=randomize_sanity_data),
+        "embedding_model": "gemini-embedding-001",
+        "chunking_strategy": "fixed_size",
     }
     data.update(overrides)
     return VectorEmbedding(**data)

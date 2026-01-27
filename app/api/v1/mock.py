@@ -68,6 +68,7 @@ async def helper(
         embedding = await generate_embedding(
             text=message,
             configuration=embedding_configuration,
+            task_type="RETRIEVAL_QUERY",  # User query for search
         )
 
     except (
@@ -98,6 +99,7 @@ async def helper(
                 sanity_data=datum.sanity_data,
                 metadata=datum.metadata,
                 score=datum.score,
+                text_id=datum.id,
             )
         )
     return transcript_data

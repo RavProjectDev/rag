@@ -43,12 +43,12 @@ async def test_generate_embedding_empty_text():
 async def test_generate_gemini_embedding(mock_gemini_embedding):
     text = "Hello world"
     config = EmbeddingConfiguration.GEMINI
-    fake_vector = [0.1] * 784
+    fake_vector = [0.1] * 3072  # Gemini default dimension
     mock_gemini_embedding.return_value = fake_vector
     embedding = await generate_embedding(text, config)
     assert embedding.text == text
     assert embedding.vector == fake_vector
-    assert len(embedding.vector) == 784
+    assert len(embedding.vector) == 3072
 
 
 @pytest.mark.asyncio
@@ -61,7 +61,7 @@ async def test_gemini_embedding_timeout(mock_get_model, mock_get_config):
     class SlowModel:
         def get_embeddings(self, *args, **kwargs):
             time.sleep(2)  # Exceeds 1-second timeout
-            return [{"values": [0.0] * 784}]
+            return [{"values": [0.0] * 3072}]  # Gemini default dimension
 
     mock_get_model.return_value = SlowModel()
 
