@@ -17,7 +17,7 @@ from rag.app.exceptions.embedding import (
 from rag.app.models.data import DocumentModel
 from rag.app.schemas.data import EmbeddingConfiguration
 from rag.app.schemas.requests import ChatRequest
-from rag.app.schemas.response import ChatResponse, TranscriptData, ErrorResponse, SourceItem
+from rag.app.schemas.response import ChatResponse, TranscriptData, ErrorResponse, SourceItem, UsedQuote
 from rag.app.services.embedding import generate_embedding
 
 router = APIRouter()
@@ -49,12 +49,24 @@ async def stream(
         sources=[
             SourceItem(
                 slug=item.sanity_data.slug,
-                timestamp=(
+                text_id=item.text_id,
+                full_text="Mock full text for testing purposes.",
+                used_quotes=[
+                    UsedQuote(
+                        number=1,
+                        text="Mock quote",
+                        timestamp=(
+                            f"{item.metadata.time_start}-{item.metadata.time_end}"
+                            if item.metadata.time_start and item.metadata.time_end
+                            else item.metadata.time_start or item.metadata.time_end
+                        ),
+                    )
+                ],
+                timestamp_range=(
                     f"{item.metadata.time_start}-{item.metadata.time_end}"
                     if item.metadata.time_start and item.metadata.time_end
                     else item.metadata.time_start or item.metadata.time_end
                 ),
-                text="",
             )
             for item in transcript_data
         ],
