@@ -74,7 +74,9 @@ jobs:
             --set-secrets="PINECONE_API_KEY=PINECONE_API_KEY:latest" \
             --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
             --set-secrets="GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest" \
-            --set-secrets="VERTEX_REGION=VERTEX_REGION:latest"
+            --set-secrets="VERTEX_REGION=VERTEX_REGION:latest" \
+            --set-secrets="UPSTASH_REDIS_REST_URL=UPSTASH_REDIS_REST_URL:latest" \
+            --set-secrets="UPSTASH_REDIS_REST_TOKEN=UPSTASH_REDIS_REST_TOKEN:latest"
 
       - name: Show service URL
         run: |
