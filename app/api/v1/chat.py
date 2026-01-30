@@ -3,7 +3,7 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from starlette import status
 
@@ -14,6 +14,7 @@ from rag.app.dependencies import (
     get_metrics_conn,
     get_embedding_configuration,
     get_llm_configuration,
+    get_redis_conn,
 )
 from rag.app.exceptions.base import BaseAppException
 from rag.app.exceptions.db import DataBaseException, NoDocumentFoundException
@@ -49,6 +50,8 @@ from rag.app.services.llm import (
 from rag.app.services.preprocess.user_input import pre_process_user_query
 from rag.app.services.prompts import PromptType
 from rag.app.services.auth import verify_jwt_token
+from rag.app.middleware.rate_limit import rate_limit_middleware
+from rag.app.db.redis_connection import RedisConnection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -146,6 +149,7 @@ async def retrieve_documents_handler(
     },
 )
 async def handler(
+    request: Request,
     chat_request: ChatRequest,
     user_id: str = Depends(verify_jwt_token),
     embedding_conn: EmbeddingConnection = Depends(get_embedding_conn),
@@ -154,6 +158,7 @@ async def handler(
         get_embedding_configuration
     ),
     llm_configuration: LLMModel = Depends(get_llm_configuration),
+    redis_conn: RedisConnection | None = Depends(get_redis_conn),
 ) -> ChatResponse | StreamingResponse:
     """
     Asynchronous chat completion endpoint for handling streaming and non-streaming chat requests.
@@ -172,6 +177,15 @@ async def handler(
         HTTPException: For validation, database, embedding, LLM, or unexpected errors.
     """
     settings = get_settings()
+    
+    # Apply rate limiting if Redis is available
+    if redis_conn:
+        await rate_limit_middleware(
+            request=request,
+            redis_conn=redis_conn,
+            limit=settings.rate_limit_max_requests,
+            window_seconds=settings.rate_limit_window_seconds,
+        )
 
     try:
         # Generate prompt and metadata

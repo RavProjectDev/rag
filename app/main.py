@@ -27,6 +27,7 @@ from rag.app.db.mongodb_connection import (
     MongoExceptionsLogger,
 )
 from rag.app.db.pinecone_connection import PineconeEmbeddingStore
+from rag.app.db.redis_connection import RedisConnection
 from rag.app.core.config import get_settings, Environment
 from rag.app.core.scheduler import start_scheduler
 from rag.app.schemas.response import ErrorResponse
@@ -106,12 +107,27 @@ async def lifespan(app: FastAPI):
         exceptions_logger = MongoExceptionsLogger(
             collection=exceptions_collection,
         )
+        
+        # Initialize Redis connection if credentials are available
+        redis_conn = None
+        if settings.upstash_redis_rest_url and settings.upstash_redis_rest_token:
+            try:
+                redis_conn = RedisConnection(
+                    url=settings.upstash_redis_rest_url,
+                    token=settings.upstash_redis_rest_token,
+                )
+                logger.info("Redis connection initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Redis connection: {e}. Rate limiting will be disabled.")
+        else:
+            logger.info("Redis credentials not provided. Rate limiting will be disabled.")
 
         app.state.embedding_conn = embedding_connection
         # Backwards compatibility for code still accessing mongo_conn
         app.state.mongo_conn = embedding_connection
         app.state.metrics_connection = metrics_connection
         app.state.exceptions_logger = exceptions_logger
+        app.state.redis_conn = redis_conn
         app.state.db_client = db
         
         # Only run the sync scheduler in production

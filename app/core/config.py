@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     pinecone_namespace: str | None = None
     pinecone_host: str | None = None
     dev_outputs: bool = False  # Enable writing debug outputs to dev_outputs/ directory
+    upstash_redis_rest_url: str | None = None  # Upstash Redis REST URL
+    upstash_redis_rest_token: str | None = None  # Upstash Redis REST Token
+    # Rate limiting (Redis): max requests per window, window TTL in seconds
+    rate_limit_max_requests: int = 10000  # Max requests allowed per window
+    rate_limit_window_seconds: int = 3600  # Window TTL in seconds (e.g. 3600 = 1 hour, 60 = 1 minute)
 
 
 @lru_cache()
