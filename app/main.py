@@ -131,23 +131,24 @@ async def lifespan(app: FastAPI):
         app.state.redis_conn = redis_conn
         app.state.db_client = db
         
-        # Only run the sync scheduler in production
-        if (
-            settings.environment == Environment.PRD
-            and settings.database_configuration == DataBaseConfiguration.MONGO
-        ):
-            logger.info("Starting sync scheduler (PRD environment)")
-            start_scheduler(
-                connection=embedding_connection,
-                embedding_configuration=settings.embedding_configuration,
-                chunking_strategy=settings.chunking_strategy,
-            )
-        else:
-            logger.info(
-                "Skipping sync scheduler (environment=%s, db=%s)",
-                settings.environment,
-                settings.database_configuration.value,
-            )
+        # Sync scheduler disabled - keeping sync scripts but not running them automatically
+        # if (
+        #     settings.environment == Environment.PRD
+        #     and settings.database_configuration == DataBaseConfiguration.MONGO
+        # ):
+        #     logger.info("Starting sync scheduler (PRD environment)")
+        #     start_scheduler(
+        #         connection=embedding_connection,
+        #         embedding_configuration=settings.embedding_configuration,
+        #         chunking_strategy=settings.chunking_strategy,
+        #     )
+        # else:
+        #     logger.info(
+        #         "Skipping sync scheduler (environment=%s, db=%s)",
+        #         settings.environment,
+        #         settings.database_configuration.value,
+        #     )
+        logger.info("Sync scheduler disabled (not running automatic sync jobs)")
         
         yield
 
