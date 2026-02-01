@@ -78,6 +78,9 @@ jobs:
             -e VERTEX_REGION="${{ secrets.VERTEX_REGION }}" \
             -e GOOGLE_APPLICATION_CREDENTIALS="/rag/credentials/gcloud-key.json" \
             -e ENVIORNMENT="PRD" \
+            -e AUTH_MODE="prd" \
+            -e SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
             ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
 
           echo "Verifying deployment..."
