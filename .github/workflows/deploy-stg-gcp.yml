@@ -77,7 +77,8 @@ jobs:
             --set-secrets="VERTEX_REGION=VERTEX_REGION:latest" \
             --set-secrets="UPSTASH_REDIS_REST_URL=UPSTASH_REDIS_REST_URL:latest" \
             --set-secrets="UPSTASH_REDIS_REST_TOKEN=UPSTASH_REDIS_REST_TOKEN:latest" \
-            --set-secrets="SUPABASE_URL=SUPABASE_URL:latest"
+            --set-secrets="SUPABASE_URL=SUPABASE_URL:latest" \
+            --set-secrets="SUPABASE_SERVICE_ROLE_KEY=SUPABASE_SERVICE_ROLE_KEY:latest"
 
       - name: Show service URL
         run: |
