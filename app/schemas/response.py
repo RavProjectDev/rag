@@ -85,3 +85,14 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="Service status, e.g., 'ok'")
     version: Optional[str] = Field(default=None, description="Service version")
     environment: Optional[str] = Field(default=None, description="Deployment env")
+
+
+class RateLimitInfoResponse(BaseModel):
+    """User rate limit information response."""
+
+    user_id: str = Field(..., description="User ID")
+    current_usage: int = Field(..., description="Current number of requests used this month")
+    remaining: int = Field(..., description="Number of requests remaining this month")
+    limit: int = Field(..., description="Maximum requests allowed per month")
+    reset_at: str = Field(..., description="ISO 8601 timestamp when the rate limit resets")
+    reset_in_seconds: int = Field(..., description="Seconds until rate limit resets")

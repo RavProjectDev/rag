@@ -19,6 +19,7 @@ from rag.app.api.v1.docs import router as docs_router
 from rag.app.api.v1.mock import router as mock_router
 from rag.app.api.v1.form import router as form_router
 from rag.app.api.v1.prompt import router as prompt_router
+from rag.app.api.v1.user import router as user_router
 from rag.app.db.connections import MetricsConnection, ExceptionsLogger
 
 from rag.app.db.mongodb_connection import (
@@ -218,6 +219,13 @@ async def log_requests(request: Request, call_next):
 
     if "response" in locals():
         response.headers["X-Request-ID"] = request_id
+        
+        # Add user rate limit headers if available
+        if hasattr(request.state, "user_rate_limit_limit"):
+            response.headers["X-RateLimit-Limit"] = str(request.state.user_rate_limit_limit)
+            response.headers["X-RateLimit-Remaining"] = str(request.state.user_rate_limit_remaining)
+            response.headers["X-RateLimit-Reset"] = str(request.state.user_rate_limit_reset)
+        
         return response
     # If response was never created due to an exception, return generic 500 here.
     payload = ErrorResponse(
@@ -305,6 +313,7 @@ app.include_router(upload_router, prefix="/api/v1/upload", tags=["data-managemen
 app.include_router(health_router, prefix="/api/v1/health", tags=["health"])
 app.include_router(mock_router, prefix="/api/v1/test", tags=["mock"])
 app.include_router(prompt_router, prefix="/api/v1/prompt", tags=["prompt"])
+app.include_router(user_router, prefix="/api/v1/user", tags=["user"])
 app.include_router(
     docs_router, prefix="", tags=["docs"]
 )  # only path-level tags applied within router
