@@ -67,7 +67,7 @@ jobs:
             --max-instances=10 \
             --port=8080 \
             --timeout=600 \
-            --set-env-vars="ENVIRONMENT=STG,DATABASE_CONFIGURATION=pinecone,PINECONE_INDEX_NAME=gemini,CHUNKING_STRATEGY=fixed_size" \
+            --set-env-vars="ENVIRONMENT=STG,DATABASE_CONFIGURATION=pinecone,PINECONE_INDEX_NAME=gemini,CHUNKING_STRATEGY=fixed_size,AUTH_MODE=prd" \
             --set-secrets="OPENAI_API_KEY=OPENAI_API_KEY:latest" \
             --set-secrets="MONGODB_URI=MONGODB_URI:latest" \
             --set-secrets="MONGODB_DB_NAME=MONGODB_DB_NAME:latest" \
@@ -76,7 +76,8 @@ jobs:
             --set-secrets="GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest" \
             --set-secrets="VERTEX_REGION=VERTEX_REGION:latest" \
             --set-secrets="UPSTASH_REDIS_REST_URL=UPSTASH_REDIS_REST_URL:latest" \
-            --set-secrets="UPSTASH_REDIS_REST_TOKEN=UPSTASH_REDIS_REST_TOKEN:latest"
+            --set-secrets="UPSTASH_REDIS_REST_TOKEN=UPSTASH_REDIS_REST_TOKEN:latest" \
+            --set-secrets="SUPABASE_URL=SUPABASE_URL:latest"
 
       - name: Show service URL
         run: |
