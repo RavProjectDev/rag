@@ -50,7 +50,7 @@ from rag.app.services.llm import (
 from rag.app.services.preprocess.user_input import pre_process_user_query
 from rag.app.services.prompts import PromptType
 from rag.app.services.auth import verify_jwt_token
-from rag.app.middleware.rate_limit import rate_limit_middleware
+from rag.app.middleware.rate_limit import rate_limit_middleware, user_rate_limit_middleware
 from rag.app.db.redis_connection import RedisConnection
 
 router = APIRouter()
@@ -180,12 +180,24 @@ async def handler(
     
     # Apply rate limiting if Redis is available
     if redis_conn:
+        # Global rate limiting (per endpoint)
         await rate_limit_middleware(
             request=request,
             redis_conn=redis_conn,
             limit=settings.rate_limit_max_requests,
             window_seconds=settings.rate_limit_window_seconds,
         )
+        
+        # User-based rate limiting (monthly reset)
+        await user_rate_limit_middleware(
+            user_id=user_id,
+            redis_conn=redis_conn,
+            limit=settings.user_rate_limit_max_requests_per_month,
+            request=request,
+        )
+    
+    # Flag to track if we should decrement rate limit on error
+    should_decrement_on_error = redis_conn is not None
 
     try:
         # Generate prompt and metadata
@@ -337,18 +349,42 @@ async def handler(
 
         return await full_response()
     except asyncio.TimeoutError:
+        # Decrement rate limit on timeout error
+        if should_decrement_on_error:
+            try:
+                await redis_conn.decrement_user_rate_limit(user_id)
+            except Exception as decr_err:
+                logger.error(f"Failed to decrement rate limit for user_id={user_id}: {decr_err}")
         raise HTTPException(
             status_code=status.HTTP_408_REQUEST_TIMEOUT,
             detail="Timeout while waiting for chat request",
         )
 
     except NoDocumentFoundException as e:
+        # Decrement rate limit when no documents found (generic message case)
+        if should_decrement_on_error:
+            try:
+                await redis_conn.decrement_user_rate_limit(user_id)
+            except Exception as decr_err:
+                logger.error(f"Failed to decrement rate limit for user_id={user_id}: {decr_err}")
         return ChatResponse(main_text=e.message_to_ui, sources=[])
     except BaseAppException as e:
+        # Decrement rate limit on application exceptions
+        if should_decrement_on_error:
+            try:
+                await redis_conn.decrement_user_rate_limit(user_id)
+            except Exception as decr_err:
+                logger.error(f"Failed to decrement rate limit for user_id={user_id}: {decr_err}")
         raise HTTPException(
             status_code=e.status_code, detail={"code": e.code, "error": e.message}
         )
     except Exception as e:
+        # Decrement rate limit on unexpected exceptions
+        if should_decrement_on_error:
+            try:
+                await redis_conn.decrement_user_rate_limit(user_id)
+            except Exception as decr_err:
+                logger.error(f"Failed to decrement rate limit for user_id={user_id}: {decr_err}")
         raise HTTPException(
             status_code=500, detail={"code": "internal_server_error", "message": str(e)}
         )

@@ -68,6 +68,8 @@ class Settings(BaseSettings):
     # Rate limiting (Redis): max requests per window, window TTL in seconds
     rate_limit_max_requests: int = 10000  # Max requests allowed per window
     rate_limit_window_seconds: int = 3600  # Window TTL in seconds (e.g. 3600 = 1 hour, 60 = 1 minute)
+    # User-based rate limiting (Redis): max requests per user per month (resets on 1st of each month ET)
+    user_rate_limit_max_requests_per_month: int = 10000  # Max requests per user per month
 
 
 @lru_cache()
