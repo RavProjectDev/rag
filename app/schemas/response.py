@@ -96,3 +96,12 @@ class RateLimitInfoResponse(BaseModel):
     limit: int = Field(..., description="Maximum requests allowed per month")
     reset_at: str = Field(..., description="ISO 8601 timestamp when the rate limit resets")
     reset_in_seconds: int = Field(..., description="Seconds until rate limit resets")
+
+
+class ConfigInfoResponse(BaseModel):
+    """Configuration information response."""
+
+    embedding_model: str = Field(..., description="Current embedding model configuration")
+    chunking_strategy: str = Field(..., description="Current chunking strategy configuration")
+    database_backend: str = Field(..., description="Current database backend (mongo or pinecone)")
+    environment: str = Field(..., description="Current environment (PRD, STG, TEST)")

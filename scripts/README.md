@@ -1,5 +1,94 @@
 # Scripts Documentation
 
+## sync_manifest.py
+
+Intelligently sync documents using configuration from the API's `/info` endpoint.
+
+### Purpose
+
+This script performs a **smart hash-based sync**:
+- Fetches embedding model and chunking strategy from the API's `/api/v1/info/` endpoint
+- Fetches all documents from the manifest
+- For each document, compares existing chunks (by hash) vs new chunks
+- Only embeds and inserts NEW chunks (skips existing ones)
+- Removes redundant chunks that exist in DB but not in the new version
+- Provides detailed statistics on chunks inserted, reused, and removed
+
+**Key Feature**: Configuration is pulled from the API to ensure sync uses the same settings as the running service.
+
+### Critical Behavior
+
+⚠️ **No Defaults**: If the API endpoint fails or doesn't exist, the script will exit with an error. This ensures you never accidentally sync with wrong configuration.
+
+### Usage
+
+```bash
+# Sync using configuration from API
+python scripts/sync_manifest.py
+
+# Use a different API URL (e.g., staging)
+python scripts/sync_manifest.py --api-url https://stg-api.theravlegacy.org
+```
+
+### Configuration Source
+
+The script fetches configuration from the API's `/api/v1/info/` endpoint, which returns:
+- `embedding_model`: e.g., "openai", "gemini-embedding-001", "cohere"
+- `chunking_strategy`: e.g., "fixed_size", "divided"
+- `database_backend`: e.g., "mongo", "pinecone"
+- `environment`: e.g., "PRD", "STG", "TEST"
+
+### Changing API URL
+
+To sync against a different environment, either:
+
+1. **Use command-line argument**:
+   ```bash
+   python scripts/sync_manifest.py --api-url https://stg-api.theravlegacy.org
+   ```
+
+2. **Edit the constant** in `sync_manifest.py`:
+   ```python
+   # At the top of sync_manifest.py
+   BASE_API_URL = "https://stg-api.theravlegacy.org"
+   ```
+
+### Example Output
+
+```
+==============================================================
+SYNC SCRIPT - Hash-based synchronization
+==============================================================
+[CONFIG] Using API URL: https://api.theravlegacy.org
+[CONFIG] Fetching configuration from https://api.theravlegacy.org/api/v1/info/
+[CONFIG] ✓ Embedding model: openai
+[CONFIG] ✓ Chunking strategy: divided
+[CONFIG] ✓ Database backend: pinecone
+[CONFIG] ✓ Environment: PRD
+==============================================================
+CONFIGURATION
+==============================================================
+Database backend: pinecone
+Embedding model: openai
+Chunking strategy: divided
+==============================================================
+[SYNC] Fetching manifest data...
+[SYNC] Fetched 150 documents from manifest
+...
+==============================================================
+SYNC COMPLETE - Summary
+==============================================================
+Documents processed: 150/150
+Total chunks: 5000
+New chunks inserted: 120
+Existing chunks reused: 4850
+Redundant chunks removed: 30
+Efficiency: 97.0% chunks reused (avoided re-embedding)
+==============================================================
+```
+
+---
+
 ## upload_manifest.py
 
 Upload all documents from the manifest to your vector database with flexible configuration options.
@@ -11,12 +100,12 @@ This script performs a **simple upload** (not sync):
 - Processes and uploads each document using specified embedding model and chunking strategy
 - Supports both MongoDB and Pinecone backends
 - Allows runtime configuration via command-line arguments
-- **Note**: This does NOT check for existing documents - use the sync service for smart syncing
+- **Note**: This does NOT check for existing documents - use `sync_manifest.py` for smart syncing
 
 ### Difference: Upload vs Sync
 
-- **`upload_manifest.py`**: Simple, brute-force upload of all manifest documents
-- **`sync_service/sync_db.py`**: Smart hash-based sync that only processes changed chunks
+- **`upload_manifest.py`**: Simple, brute-force upload of all manifest documents (no deduplication)
+- **`sync_manifest.py`**: Smart hash-based sync that only processes changed chunks and removes redundant ones
 
 ### Usage
 
