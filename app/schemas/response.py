@@ -19,11 +19,19 @@ class TranscriptData(BaseModel):
         }
 
 
+class UsedQuote(BaseModel):
+    """Individual quote that was used from a source."""
+    number: int
+    text: str
+    timestamp: Optional[str] = None
+
+
 class SourceItem(BaseModel):
     slug: str
-    timestamp: Optional[str] = None
-    text: str
     text_id: Optional[str] = None
+    full_text: str  # Full text with bolded used quotes (using **text** for bold)
+    used_quotes: list[UsedQuote]  # List of individual quotes that were used
+    timestamp_range: Optional[str] = None  # Overall timestamp range for the full document
 
 
 class ChatResponse(BaseModel):
