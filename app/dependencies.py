@@ -5,6 +5,7 @@ from rag.app.core import config
 #SETTINGS
 from rag.app.schemas.data import LLMModel, EmbeddingConfiguration, ChunkingStrategy
 from rag.app.db.connections import EmbeddingConnection, MetricsConnection
+from rag.app.db.redis_connection import RedisConnection
 
 
 def get_embedding_conn(request: Request) -> EmbeddingConnection:
@@ -37,3 +38,10 @@ def get_random_embedding_collection(request: Request) -> EmbeddingConnection:
     if hasattr(request.app.state, "embedding_conn"):
         return request.app.state.embedding_conn
     return request.app.state.mongo_conn
+
+
+def get_redis_conn(request: Request) -> RedisConnection | None:
+    """Get Redis connection from app state if available."""
+    if hasattr(request.app.state, "redis_conn"):
+        return request.app.state.redis_conn
+    return None

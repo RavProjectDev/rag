@@ -3,7 +3,7 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from starlette import status
 
@@ -14,6 +14,7 @@ from rag.app.dependencies import (
     get_metrics_conn,
     get_embedding_configuration,
     get_llm_configuration,
+    get_redis_conn,
 )
 from rag.app.exceptions.base import BaseAppException
 from rag.app.exceptions.db import DataBaseException, NoDocumentFoundException
@@ -49,6 +50,8 @@ from rag.app.services.llm import (
 from rag.app.services.preprocess.user_input import pre_process_user_query
 from rag.app.services.prompts import PromptType
 from rag.app.services.auth import verify_jwt_token
+from rag.app.middleware.rate_limit import rate_limit_middleware, user_rate_limit_middleware
+from rag.app.db.redis_connection import RedisConnection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -146,6 +149,7 @@ async def retrieve_documents_handler(
     },
 )
 async def handler(
+    request: Request,
     chat_request: ChatRequest,
     user_id: str = Depends(verify_jwt_token),
     embedding_conn: EmbeddingConnection = Depends(get_embedding_conn),
@@ -154,6 +158,7 @@ async def handler(
         get_embedding_configuration
     ),
     llm_configuration: LLMModel = Depends(get_llm_configuration),
+    redis_conn: RedisConnection | None = Depends(get_redis_conn),
 ) -> ChatResponse | StreamingResponse:
     """
     Asynchronous chat completion endpoint for handling streaming and non-streaming chat requests.
@@ -172,6 +177,27 @@ async def handler(
         HTTPException: For validation, database, embedding, LLM, or unexpected errors.
     """
     settings = get_settings()
+    
+    # Apply rate limiting if Redis is available
+    if redis_conn:
+        # Global rate limiting (per endpoint)
+        await rate_limit_middleware(
+            request=request,
+            redis_conn=redis_conn,
+            limit=settings.rate_limit_max_requests,
+            window_seconds=settings.rate_limit_window_seconds,
+        )
+        
+        # User-based rate limiting (monthly reset)
+        await user_rate_limit_middleware(
+            user_id=user_id,
+            redis_conn=redis_conn,
+            limit=settings.user_rate_limit_max_requests_per_month,
+            request=request,
+        )
+    
+    # Flag to track if we should decrement rate limit on error
+    should_decrement_on_error = redis_conn is not None
 
     try:
         # Generate prompt and metadata
@@ -253,10 +279,8 @@ async def handler(
                         # Build source lookup by number
                         source_by_number = {src["number"]: src for src in source_list}
                         
-                        # Map source numbers to actual sources
-                        sources = []
-                        slug_counts = {}  # Track quotes per slug
-                        
+                        # Group sources by text_id (parent document)
+                        sources_by_doc = {}
                         for num in source_numbers:
                             source = source_by_number.get(num)
                             if source is None:
@@ -266,31 +290,105 @@ async def handler(
                                 )
                                 continue
                             
+                            text_id = source["text_id"]
+                            if text_id not in sources_by_doc:
+                                sources_by_doc[text_id] = []
+                            sources_by_doc[text_id].append(source)
+                        
+                        # Build sources with full context and bolded used quotes
+                        sources = []
+                        slug_counts = {}  # Track quotes per slug
+                        
+                        for text_id, used_sources in sources_by_doc.items():
+                            # Find the original document from retrieved_docs
+                            original_doc = next((d for d in retrieved_docs if d.id == text_id), None)
+                            if not original_doc:
+                                logger.warning(f"[FULL RESPONSE] Could not find original document for text_id={text_id}")
+                                continue
+                            
+                            # Get all text segments from the document
+                            all_segments = original_doc.text if isinstance(original_doc.text, list) else [(original_doc.text, None)]
+                            
+                            # Build set of used text for quick lookup
+                            used_texts = {s["text"] for s in used_sources}
+                            
+                            # Reconstruct full text with bolded used segments
+                            reconstructed_text_parts = []
+                            min_time = None
+                            max_time = None
+                            
+                            for segment in all_segments:
+                                if isinstance(segment, (list, tuple)) and len(segment) >= 1:
+                                    text_content = segment[0]
+                                    
+                                    # Track timestamp range
+                                    if len(segment) >= 2 and isinstance(segment[1], (list, tuple)) and len(segment[1]) >= 2:
+                                        time_start = segment[1][0]
+                                        time_end = segment[1][1]
+                                        if time_start:
+                                            if min_time is None or time_start < min_time:
+                                                min_time = time_start
+                                        if time_end:
+                                            if max_time is None or time_end > max_time:
+                                                max_time = time_end
+                                    
+                                    # Check if this segment was used and bolden it
+                                    if text_content in used_texts:
+                                        reconstructed_text_parts.append(f"**{text_content}**")
+                                    else:
+                                        reconstructed_text_parts.append(text_content)
+                                else:
+                                    reconstructed_text_parts.append(str(segment))
+                            
+                            # Join all parts
+                            full_text_with_highlights = " ".join(reconstructed_text_parts)
+                            
+                            # Create timestamp range
+                            timestamp_range = None
+                            if min_time and max_time:
+                                timestamp_range = f"{min_time}-{max_time}"
+                            elif min_time:
+                                timestamp_range = min_time
+                            elif max_time:
+                                timestamp_range = max_time
+                            
+                            # Create list of used quotes
+                            used_quotes = [
+                                {
+                                    "number": s["number"],
+                                    "text": s["text"],
+                                    "timestamp": s["timestamp"]
+                                }
+                                for s in used_sources
+                            ]
+                            
+                            # Create source entry with full context
                             source_entry = {
-                                "slug": source["slug"],
-                                "timestamp": source["timestamp"],
-                                "text": source["text"],
-                                "text_id": source["text_id"],
+                                "slug": original_doc.sanity_data.slug,
+                                "text_id": text_id,
+                                "full_text": full_text_with_highlights,
+                                "used_quotes": used_quotes,
+                                "timestamp_range": timestamp_range,
                             }
                             sources.append(source_entry)
                             
                             # Count quotes per slug
-                            slug_counts[source["slug"]] = slug_counts.get(source["slug"], 0) + 1
+                            slug = original_doc.sanity_data.slug
+                            slug_counts[slug] = slug_counts.get(slug, 0) + len(used_sources)
                             
                             # Log source details
                             logger.info(
-                                f"[FULL RESPONSE] Source [{num}]: slug={source['slug']}, "
-                                f"timestamp={source['timestamp']}, text_id={source['text_id']}, "
-                                f"text_length={len(source['text'])} chars"
+                                f"[FULL RESPONSE] Document text_id={text_id}, slug={slug}, "
+                                f"used_quotes={len(used_sources)}, full_text_length={len(full_text_with_highlights)} chars"
                             )
                         
                         # Log distribution of quotes across sources
                         unique_slugs = len(slug_counts)
                         logger.info(
-                            f"[FULL RESPONSE] Returning {len(sources)} sources from {unique_slugs} unique transcript(s)"
+                            f"[FULL RESPONSE] Returning {len(sources)} documents with {sum(slug_counts.values())} total quotes from {unique_slugs} unique transcript(s)"
                         )
                         for slug, count in slug_counts.items():
-                            logger.info(f"[FULL RESPONSE] Transcript '{slug}': {count} source(s)")
+                            logger.info(f"[FULL RESPONSE] Transcript '{slug}': {count} quote(s)")
                         
                         return ChatResponse(
                             main_text=main_text,
@@ -323,18 +421,42 @@ async def handler(
 
         return await full_response()
     except asyncio.TimeoutError:
+        # Decrement rate limit on timeout error
+        if should_decrement_on_error:
+            try:
+                await redis_conn.decrement_user_rate_limit(user_id)
+            except Exception as decr_err:
+                logger.error(f"Failed to decrement rate limit for user_id={user_id}: {decr_err}")
         raise HTTPException(
             status_code=status.HTTP_408_REQUEST_TIMEOUT,
             detail="Timeout while waiting for chat request",
         )
 
     except NoDocumentFoundException as e:
+        # Decrement rate limit when no documents found (generic message case)
+        if should_decrement_on_error:
+            try:
+                await redis_conn.decrement_user_rate_limit(user_id)
+            except Exception as decr_err:
+                logger.error(f"Failed to decrement rate limit for user_id={user_id}: {decr_err}")
         return ChatResponse(main_text=e.message_to_ui, sources=[])
     except BaseAppException as e:
+        # Decrement rate limit on application exceptions
+        if should_decrement_on_error:
+            try:
+                await redis_conn.decrement_user_rate_limit(user_id)
+            except Exception as decr_err:
+                logger.error(f"Failed to decrement rate limit for user_id={user_id}: {decr_err}")
         raise HTTPException(
             status_code=e.status_code, detail={"code": e.code, "error": e.message}
         )
     except Exception as e:
+        # Decrement rate limit on unexpected exceptions
+        if should_decrement_on_error:
+            try:
+                await redis_conn.decrement_user_rate_limit(user_id)
+            except Exception as decr_err:
+                logger.error(f"Failed to decrement rate limit for user_id={user_id}: {decr_err}")
         raise HTTPException(
             status_code=500, detail={"code": "internal_server_error", "message": str(e)}
         )

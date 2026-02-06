@@ -16,9 +16,11 @@ from rag.app.api.v1.chat import router as chat_router
 from rag.app.api.v1.data_management import router as upload_router
 from rag.app.api.v1.health import router as health_router
 from rag.app.api.v1.docs import router as docs_router
+from rag.app.api.v1.info import router as info_router
 from rag.app.api.v1.mock import router as mock_router
 from rag.app.api.v1.form import router as form_router
 from rag.app.api.v1.prompt import router as prompt_router
+from rag.app.api.v1.user import router as user_router
 from rag.app.db.connections import MetricsConnection, ExceptionsLogger
 
 from rag.app.db.mongodb_connection import (
@@ -27,6 +29,7 @@ from rag.app.db.mongodb_connection import (
     MongoExceptionsLogger,
 )
 from rag.app.db.pinecone_connection import PineconeEmbeddingStore
+from rag.app.db.redis_connection import RedisConnection
 from rag.app.core.config import get_settings, Environment
 from rag.app.core.scheduler import start_scheduler
 from rag.app.schemas.response import ErrorResponse
@@ -106,31 +109,47 @@ async def lifespan(app: FastAPI):
         exceptions_logger = MongoExceptionsLogger(
             collection=exceptions_collection,
         )
+        
+        # Initialize Redis connection if credentials are available
+        redis_conn = None
+        if settings.upstash_redis_rest_url and settings.upstash_redis_rest_token:
+            try:
+                redis_conn = RedisConnection(
+                    url=settings.upstash_redis_rest_url,
+                    token=settings.upstash_redis_rest_token,
+                )
+                logger.info("Redis connection initialized successfully")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Redis connection: {e}. Rate limiting will be disabled.")
+        else:
+            logger.info("Redis credentials not provided. Rate limiting will be disabled.")
 
         app.state.embedding_conn = embedding_connection
         # Backwards compatibility for code still accessing mongo_conn
         app.state.mongo_conn = embedding_connection
         app.state.metrics_connection = metrics_connection
         app.state.exceptions_logger = exceptions_logger
+        app.state.redis_conn = redis_conn
         app.state.db_client = db
         
-        # Only run the sync scheduler in production
-        if (
-            settings.environment == Environment.PRD
-            and settings.database_configuration == DataBaseConfiguration.MONGO
-        ):
-            logger.info("Starting sync scheduler (PRD environment)")
-            start_scheduler(
-                connection=embedding_connection,
-                embedding_configuration=settings.embedding_configuration,
-                chunking_strategy=settings.chunking_strategy,
-            )
-        else:
-            logger.info(
-                "Skipping sync scheduler (environment=%s, db=%s)",
-                settings.environment,
-                settings.database_configuration.value,
-            )
+        # Sync scheduler disabled - keeping sync scripts but not running them automatically
+        # if (
+        #     settings.environment == Environment.PRD
+        #     and settings.database_configuration == DataBaseConfiguration.MONGO
+        # ):
+        #     logger.info("Starting sync scheduler (PRD environment)")
+        #     start_scheduler(
+        #         connection=embedding_connection,
+        #         embedding_configuration=settings.embedding_configuration,
+        #         chunking_strategy=settings.chunking_strategy,
+        #     )
+        # else:
+        #     logger.info(
+        #         "Skipping sync scheduler (environment=%s, db=%s)",
+        #         settings.environment,
+        #         settings.database_configuration.value,
+        #     )
+        logger.info("Sync scheduler disabled (not running automatic sync jobs)")
         
         yield
 
@@ -202,6 +221,13 @@ async def log_requests(request: Request, call_next):
 
     if "response" in locals():
         response.headers["X-Request-ID"] = request_id
+        
+        # Add user rate limit headers if available
+        if hasattr(request.state, "user_rate_limit_limit"):
+            response.headers["X-RateLimit-Limit"] = str(request.state.user_rate_limit_limit)
+            response.headers["X-RateLimit-Remaining"] = str(request.state.user_rate_limit_remaining)
+            response.headers["X-RateLimit-Reset"] = str(request.state.user_rate_limit_reset)
+        
         return response
     # If response was never created due to an exception, return generic 500 here.
     payload = ErrorResponse(
@@ -287,8 +313,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.include_router(chat_router, prefix="/api/v1/chat", tags=["chat"])
 app.include_router(upload_router, prefix="/api/v1/upload", tags=["data-management"])
 app.include_router(health_router, prefix="/api/v1/health", tags=["health"])
+app.include_router(info_router, prefix="/api/v1/info", tags=["info"])
 app.include_router(mock_router, prefix="/api/v1/test", tags=["mock"])
 app.include_router(prompt_router, prefix="/api/v1/prompt", tags=["prompt"])
+app.include_router(user_router, prefix="/api/v1/user", tags=["user"])
 app.include_router(
     docs_router, prefix="", tags=["docs"]
 )  # only path-level tags applied within router

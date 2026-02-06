@@ -9,6 +9,9 @@ from rag.app.core.config import get_settings, AuthMode
 
 logger = logging.getLogger(__name__)
 
+# Admin email: tokens for this user are accepted even when expired (for demos, saved JWT)
+ADMIN_DEMO_EMAIL = "noampvb@gmail.com"
+
 security = HTTPBearer(auto_error=False)  # Don't auto-raise error, we'll handle it based on mode
 
 
@@ -87,6 +90,22 @@ async def verify_jwt_token(
         return user_id
         
     except jwt.ExpiredSignatureError:
+        # Allow expired tokens for admin demo email (saved JWT for demos)
+        try:
+            decoded_token = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["ES256"],
+                audience="authenticated",
+                options={"verify_exp": False, "verify_aud": True}
+            )
+            if decoded_token.get("email") == ADMIN_DEMO_EMAIL:
+                user_id = decoded_token.get("sub")
+                if user_id:
+                    logger.info(f"User logged in (PRD mode, admin demo): user_id={user_id}")
+                    return user_id
+        except jwt.InvalidTokenError:
+            pass
         logger.warning("Token has expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -19,11 +19,19 @@ class TranscriptData(BaseModel):
         }
 
 
+class UsedQuote(BaseModel):
+    """Individual quote that was used from a source."""
+    number: int
+    text: str
+    timestamp: Optional[str] = None
+
+
 class SourceItem(BaseModel):
     slug: str
-    timestamp: Optional[str] = None
-    text: str
     text_id: Optional[str] = None
+    full_text: str  # Full text with bolded used quotes (using **text** for bold)
+    used_quotes: list[UsedQuote]  # List of individual quotes that were used
+    timestamp_range: Optional[str] = None  # Overall timestamp range for the full document
 
 
 class ChatResponse(BaseModel):
@@ -85,3 +93,23 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="Service status, e.g., 'ok'")
     version: Optional[str] = Field(default=None, description="Service version")
     environment: Optional[str] = Field(default=None, description="Deployment env")
+
+
+class RateLimitInfoResponse(BaseModel):
+    """User rate limit information response."""
+
+    user_id: str = Field(..., description="User ID")
+    current_usage: int = Field(..., description="Current number of requests used this month")
+    remaining: int = Field(..., description="Number of requests remaining this month")
+    limit: int = Field(..., description="Maximum requests allowed per month")
+    reset_at: str = Field(..., description="ISO 8601 timestamp when the rate limit resets")
+    reset_in_seconds: int = Field(..., description="Seconds until rate limit resets")
+
+
+class ConfigInfoResponse(BaseModel):
+    """Configuration information response."""
+
+    embedding_model: str = Field(..., description="Current embedding model configuration")
+    chunking_strategy: str = Field(..., description="Current chunking strategy configuration")
+    database_backend: str = Field(..., description="Current database backend (mongo or pinecone)")
+    environment: str = Field(..., description="Current environment (PRD, STG, TEST)")
