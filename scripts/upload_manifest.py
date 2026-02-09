@@ -233,18 +233,18 @@ async def main():
     
     settings = get_settings()
     
-    # Determine embedding model to use
+    # CLI args have highest precedence and always override .env
+    # Order: CLI args > config defaults (ignore .env for these settings when CLI provided)
     if args.embedding_model:
         embedding_model = EmbeddingConfiguration(args.embedding_model)
-        logger.info(f"Using embedding model from command line: {embedding_model.value}")
+        logger.info(f"Using embedding model from CLI (overrides .env): {embedding_model.value}")
     else:
         embedding_model = settings.embedding_configuration
         logger.info(f"Using embedding model from environment: {embedding_model.value}")
     
-    # Determine chunking strategy to use
     if args.chunking_strategy:
         chunking_strategy = ChunkingStrategy(args.chunking_strategy)
-        logger.info(f"Using chunking strategy from command line: {chunking_strategy.value}")
+        logger.info(f"Using chunking strategy from CLI (overrides .env): {chunking_strategy.value}")
     else:
         chunking_strategy = settings.chunking_strategy
         logger.info(f"Using chunking strategy from environment: {chunking_strategy.value}")
