@@ -108,9 +108,10 @@ class ChunkingStrategy(Enum):
     """Available chunking strategies for document processing."""
     FIXED_SIZE = "fixed_size"  # Fixed token-based chunking
     DIVIDED = "divided"  # Large chunks divided into sub-chunks with shared context
+    SENTENCE_FIXED_REGEX = "sentence_fixed_regex"  # Sentence-aware chunking with regex-based detection
+    SENTENCE_DIVIDED_REGEX = "sentence_divided_regex"  # Sentence-aware divided chunking with regex
     # Future strategies can be added here:
     # SEMANTIC = "semantic"  # Semantic-based chunking
-    # SENTENCE = "sentence"  # Sentence-boundary chunking
     # SLIDING_WINDOW = "sliding_window"  # Overlapping window chunking
 
 

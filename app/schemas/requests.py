@@ -18,6 +18,22 @@ class ChatRequest(BaseModel):
         default=PromptType.STRUCTURED_JSON,
         description="Prompt type to use for generation. Defaults to Production mode."
     )
+    pinecone_index: str | None = Field(
+        default=None,
+        description=(
+            "Optional Pinecone index name to query (e.g., 'gemini-embedding-001'). "
+            "If not specified, uses PINECONE_INDEX_NAME from environment variables. "
+            "Use /api/v1/config/available-configs to see available options."
+        )
+    )
+    pinecone_namespace: str | None = Field(
+        default=None,
+        description=(
+            "Optional Pinecone namespace for chunking strategy (e.g., 'sentence_fixed_regex'). "
+            "If not specified, uses PINECONE_NAMESPACE from environment variables. "
+            "Use /api/v1/config/available-configs to see available options."
+        )
+    )
 
     @classmethod
     @field_validator("question")
@@ -35,6 +51,22 @@ class RetrieveDocumentsRequest(BaseModel):
         ge=1,
         le=50,
         description="Number of top documents to return (1-50).",
+    )
+    pinecone_index: str | None = Field(
+        default=None,
+        description=(
+            "Optional Pinecone index name to query (e.g., 'gemini-embedding-001'). "
+            "If not specified, uses PINECONE_INDEX_NAME from environment variables. "
+            "Use /api/v1/config/available-configs to see available options."
+        )
+    )
+    pinecone_namespace: str | None = Field(
+        default=None,
+        description=(
+            "Optional Pinecone namespace for chunking strategy (e.g., 'sentence_fixed_regex'). "
+            "If not specified, uses PINECONE_NAMESPACE from environment variables. "
+            "Use /api/v1/config/available-configs to see available options."
+        )
     )
 
     @classmethod

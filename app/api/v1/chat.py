@@ -91,6 +91,8 @@ async def retrieve_documents_handler(
                 name_spaces=request.name_spaces,
                 top_k=request.top_k,
                 request_id=request_id,
+                pinecone_index=request.pinecone_index,
+                pinecone_namespace=request.pinecone_namespace,
             ),
             timeout=settings.external_api_timeout,
         )
@@ -213,6 +215,8 @@ async def handler(
                 metrics_connection=metrics_conn,
                 name_spaces=chat_request.name_spaces,
                 prompt_id=chat_request.prompt_type,
+                pinecone_index=chat_request.pinecone_index,
+                pinecone_namespace=chat_request.pinecone_namespace,
             ),
             timeout=settings.external_api_timeout,
         )
@@ -470,6 +474,8 @@ async def retrieve_relevant_documents(
     name_spaces: list[str] | None = None,
     request_id: str | None = None,
     top_k: int | None = None,
+    pinecone_index: str | None = None,
+    pinecone_namespace: str | None = None,
 ) -> tuple[str, list[DocumentModel], list[TranscriptData]]:
     """
     Shared pipeline that performs preprocessing, embedding generation,
@@ -546,6 +552,10 @@ async def retrieve_relevant_documents(
     retrieve_kwargs = {}
     if top_k is not None:
         retrieve_kwargs["k"] = top_k
+    if pinecone_index is not None:
+        retrieve_kwargs["index_override"] = pinecone_index
+    if pinecone_namespace is not None:
+        retrieve_kwargs["namespace_override"] = pinecone_namespace
 
     async with metrics_connection.timed(
         metric_type="RETRIEVAL", data={"request_id": request_id}
@@ -607,6 +617,8 @@ async def generate(
     metrics_connection: MetricsConnection,
     name_spaces: list[str] = None,
     prompt_id: PromptType = PromptType.LIGHT,
+    pinecone_index: str | None = None,
+    pinecone_namespace: str | None = None,
 ) -> tuple[Prompt, list[TranscriptData], list[DocumentModel], list[dict]]:
     """
     Generate an LLM prompt and retrieve relevant context.
@@ -617,6 +629,8 @@ async def generate(
         connection: Database connection for retrieving documents.
         metrics_connection: Connection for logging metrics.
         name_spaces: Name spaces optional.
+        pinecone_index: Optional Pinecone index name override.
+        pinecone_namespace: Optional Pinecone namespace override.
 
     Returns:
         Tuple[str, List[dict]]: The generated prompt and list of metadata.
@@ -628,7 +642,7 @@ async def generate(
         LLMException: For prompt generation errors.
     """
     request_id = uuid.uuid4().hex
-    logger.info(f"[GENERATE START] request_id={request_id}, question='{user_question}', name_spaces={name_spaces}, prompt_id={prompt_id}")
+    logger.info(f"[GENERATE START] request_id={request_id}, question='{user_question}', name_spaces={name_spaces}, prompt_id={prompt_id}, pinecone_index={pinecone_index}, pinecone_namespace={pinecone_namespace}")
     cleaned_question, data, transcript_data = await retrieve_relevant_documents(
         user_question=user_question,
         embedding_configuration=embedding_configuration,
@@ -636,6 +650,8 @@ async def generate(
         metrics_connection=metrics_connection,
         name_spaces=name_spaces,
         request_id=request_id,
+        pinecone_index=pinecone_index,
+        pinecone_namespace=pinecone_namespace,
     )
 
     logger.info(f"[GENERATE] request_id={request_id}, Generating prompt with {len(data)} documents, prompt_id={prompt_id}")

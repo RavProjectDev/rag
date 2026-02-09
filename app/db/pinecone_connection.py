@@ -45,21 +45,43 @@ class PineconeEmbeddingStore(EmbeddingConnection):
         if not index_name and not host:
             raise ValueError("pinecone_index_name or pinecone_host is required.")
 
-        # New Pinecone API
-        pc = Pinecone(api_key=api_key)
+        # Store Pinecone client for creating dynamic index connections
+        self.pc = Pinecone(api_key=api_key)
         
-        # Get the index - host takes precedence when provided (serverless-style connection)
+        # Store default configuration (from environment variables)
+        self.default_index_name = index_name
+        self.default_namespace = namespace
+        
+        # Get the default index - host takes precedence when provided (serverless-style connection)
         if host:
-            self.index = pc.Index(host=host)
+            self.index = self.pc.Index(host=host)
         else:
-            self.index = pc.Index(index_name)
+            self.index = self.pc.Index(index_name)
         
         self.namespace = namespace
         self.chunks_collection = chunks_collection
         
+        # Cache for dynamically created index objects
+        self._index_cache = {index_name: self.index}
+        
         logger.info(
-            f"[PINECONE] Initialized with index={index_name}, namespace={namespace}"
+            f"[PINECONE] Initialized with default_index={index_name}, default_namespace={namespace}"
         )
+
+    def _get_index(self, index_name: str):
+        """
+        Get or create a cached index object for the given index name.
+        
+        Args:
+            index_name: Name of the Pinecone index
+            
+        Returns:
+            Pinecone Index object
+        """
+        if index_name not in self._index_cache:
+            self._index_cache[index_name] = self.pc.Index(index_name)
+            logger.info(f"[PINECONE] Created new index connection: {index_name}")
+        return self._index_cache[index_name]
 
     @staticmethod
     def _build_metadata(embedding: VectorEmbedding) -> dict:
@@ -214,17 +236,37 @@ class PineconeEmbeddingStore(EmbeddingConnection):
         name_spaces: list[str] | None = None,
         k=5,
         threshold: float = 0.7,
+        index_override: str | None = None,
+        namespace_override: str | None = None,
     ) -> list[DocumentModel]:
+        # Determine which index to use (defaults to env config if not specified)
+        if index_override:
+            query_index = self._get_index(index_override)
+            query_index_name = index_override
+        else:
+            query_index = self.index
+            query_index_name = self.default_index_name
+        
+        # Determine which namespace to use (defaults to env config if not specified)
+        query_namespace = namespace_override if namespace_override is not None else self.namespace
+        
         filter_payload = None
         if name_spaces:
             filter_payload = {"name_space": {"$in": name_spaces}}
+        
+        logger.info(
+            f"[PINECONE QUERY] index={query_index_name}{' (default)' if not index_override else ''}, "
+            f"namespace={query_namespace}{' (default)' if namespace_override is None else ''}, "
+            f"name_spaces_filter={name_spaces}"
+        )
+        
         try:
             result = await asyncio.to_thread(
-                self.index.query,
+                query_index.query,
                 vector=embedded_data,
                 top_k=max(k * 3, k),
                 include_metadata=True,
-                namespace=self.namespace,
+                namespace=query_namespace,
                 filter=filter_payload,
             )
         except Exception as e:

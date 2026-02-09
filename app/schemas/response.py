@@ -113,3 +113,92 @@ class ConfigInfoResponse(BaseModel):
     chunking_strategy: str = Field(..., description="Current chunking strategy configuration")
     database_backend: str = Field(..., description="Current database backend (mongo or pinecone)")
     environment: str = Field(..., description="Current environment (PRD, STG, TEST)")
+
+
+class NamespaceDetail(BaseModel):
+    """Details about a Pinecone namespace."""
+    
+    namespace: str = Field(..., description="Namespace name (typically chunking strategy)")
+    vector_count: int = Field(..., description="Number of vectors in this namespace")
+
+
+class PineconeIndexConfiguration(BaseModel):
+    """Configuration details for a single Pinecone index."""
+    
+    index_name: str = Field(..., description="Pinecone index name")
+    dimension: int = Field(..., description="Vector dimension of the index")
+    metric: str = Field(..., description="Distance metric (e.g., 'cosine', 'euclidean')")
+    namespaces: list[str] = Field(..., description="List of available namespace names")
+    total_vector_count: int = Field(..., description="Total number of vectors across all namespaces")
+    namespace_details: list[NamespaceDetail] = Field(..., description="Detailed information about each namespace")
+
+
+class AvailableConfigurationsResponse(BaseModel):
+    """Response containing all available Pinecone configurations."""
+    
+    available_configurations: list[PineconeIndexConfiguration] = Field(
+        ..., 
+        description="List of all available Pinecone index configurations"
+    )
+    default_index: Optional[str] = Field(
+        None, 
+        description="Default Pinecone index name from config"
+    )
+    default_namespace: Optional[str] = Field(
+        None, 
+        description="Default Pinecone namespace from config"
+    )
+
+
+class SimpleIndexConfig(BaseModel):
+    """Simplified index configuration showing just index and namespaces."""
+    
+    index: str = Field(..., description="Pinecone index name")
+    namespaces: list[str] = Field(..., description="List of available namespace names")
+
+
+class SimpleConfigurationsResponse(BaseModel):
+    """Simplified response showing just indexes and their namespaces."""
+    
+    indexes: list[SimpleIndexConfig] = Field(
+        ..., 
+        description="List of indexes with their available namespaces"
+    )
+    defaults: dict[str, Optional[str]] = Field(
+        ...,
+        description="Default index and namespace from environment config"
+    )
+
+
+class ChunkingStrategyInfo(BaseModel):
+    """Information about a chunking strategy."""
+    
+    name: str = Field(..., description="Chunking strategy identifier")
+    description: str = Field(..., description="What this chunking strategy does")
+
+
+class EmbeddingModelConfig(BaseModel):
+    """Configuration for an embedding model with available chunking strategies."""
+    
+    embedding_model: str = Field(..., description="Embedding model name (e.g., 'gemini-embedding-001')")
+    chunking_strategies: list[ChunkingStrategyInfo] = Field(
+        ..., 
+        description="Available chunking strategies for this embedding model"
+    )
+
+
+class EnhancedConfigurationsResponse(BaseModel):
+    """Enhanced response showing embedding models with chunking strategies and descriptions."""
+    
+    available_combinations: list[EmbeddingModelConfig] = Field(
+        ..., 
+        description="Available embedding model + chunking strategy combinations"
+    )
+    defaults: dict[str, Optional[str]] = Field(
+        ...,
+        description="Default embedding model (index) and chunking strategy (namespace) from environment config"
+    )
+    strategy_descriptions: dict[str, str] = Field(
+        ...,
+        description="Detailed descriptions of all chunking strategies"
+    )

@@ -139,7 +139,7 @@ In-depth analysis with multiple paragraphs, organized by themes or concepts foun
 - Draw connections and explore implications
 - Synthesize ideas from multiple sources when present
 
-**Summary** (3-4 sentences providing comprehensive synthesis of insights from the provided context)""",
+**Summary** (2-3 sentences providing comprehensive synthesis of insights from the provided context)""",
     PromptType.STRUCTURED_JSON.value: """You are a Rav Soloveitchik expert assistant. Your task is to output ONLY a valid JSON object that summarizes the main idea and lists which numbered sources from the context you used.
 
 # Context
