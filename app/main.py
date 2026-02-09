@@ -21,6 +21,7 @@ from rag.app.api.v1.mock import router as mock_router
 from rag.app.api.v1.form import router as form_router
 from rag.app.api.v1.prompt import router as prompt_router
 from rag.app.api.v1.user import router as user_router
+from rag.app.api.v1.config import router as config_router
 from rag.app.db.connections import MetricsConnection, ExceptionsLogger
 
 from rag.app.db.mongodb_connection import (
@@ -317,6 +318,7 @@ app.include_router(info_router, prefix="/api/v1/info", tags=["info"])
 app.include_router(mock_router, prefix="/api/v1/test", tags=["mock"])
 app.include_router(prompt_router, prefix="/api/v1/prompt", tags=["prompt"])
 app.include_router(user_router, prefix="/api/v1/user", tags=["user"])
+app.include_router(config_router, prefix="/api/v1/config", tags=["config"])
 app.include_router(
     docs_router, prefix="", tags=["docs"]
 )  # only path-level tags applied within router
