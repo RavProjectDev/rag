@@ -162,7 +162,7 @@ The context above contains numbered sources [1], [2], [3], etc. Each source is a
   "source_numbers": [number]
 }}
 3. MAIN TEXT:
-   - Provide a comprehensive response (3-5 sentences) that directly answers the user's question
+   - Provide a comprehensive response (2-3 sentences) that directly answers the user's question
    - Synthesize and explain the relevant ideas from the numbered sources
    - Write naturally and clearly for the user
 4. SOURCE NUMBERS:
