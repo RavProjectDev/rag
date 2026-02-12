@@ -1,5 +1,6 @@
 from typing import Any, Optional
 from pydantic import BaseModel, Field
+import uuid
 
 from rag.app.models.data import SanityData, Metadata, DocumentModel
 
@@ -37,6 +38,10 @@ class SourceItem(BaseModel):
 class ChatResponse(BaseModel):
     main_text: str
     sources: list[SourceItem]
+    thread_id: Optional[uuid.UUID] = Field(
+        default=None,
+        description="Thread ID returned from Supabase (if query was submitted)"
+    )
 
 
 class RetrieveDocumentsResponse(BaseModel):
