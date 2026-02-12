@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     retry_backoff_multiplier: float = 2.0  # Exponential backoff multiplier
     google_application_credentials: str | None = None
     supabase_url: str | None = None  # Supabase project URL for JWKS
+    supabase_service_role_key: str | None = None  # Supabase service role key
+    supabase_anon_key: str | None = None  # Supabase anon key
     auth_mode: AuthMode = AuthMode.DEV  # Authentication mode: dev (no auth) or prd (requires auth)
     pinecone_api_key: str | None = None
     pinecone_environment: str | None = None

@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import uuid
+import httpx
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -55,6 +56,69 @@ from rag.app.db.redis_connection import RedisConnection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+async def submit_to_supabase(
+    question: str,
+    response: str,
+    thread_id: uuid.UUID | None,
+    user_id: str,
+) -> str | None:
+    """
+    Submit query and response to Supabase RPC (blocking call).
+    
+    Args:
+        question: The user's question
+        response: The generated response (main_text or full JSON string)
+        thread_id: Optional thread ID to append to
+        user_id: The authenticated user's ID
+    
+    Returns:
+        str: Thread ID (UUID as string) from Supabase RPC, or None if Supabase is not configured
+    
+    Raises:
+        httpx.HTTPStatusError: If the RPC call fails
+    """
+    settings = get_settings()
+    
+    # Skip if Supabase is not configured
+    if not settings.supabase_url or not settings.supabase_service_role_key:
+        logger.warning("Supabase URL or service role key not configured, skipping query submission")
+        return None
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response_data = await client.post(
+                f"{settings.supabase_url}/rest/v1/rpc/submit_user_query",
+                json={
+                    "question_arg": question,
+                    "response_arg": response,
+                    "thread_id_arg": str(thread_id) if thread_id else None,
+                    "thread_name_arg": "New Thread",
+                    "user_id_arg": user_id,
+                },
+                headers={
+                    "Content-Type": "application/json",
+                    "apikey": settings.supabase_service_role_key,
+                    "Authorization": f"Bearer {settings.supabase_service_role_key}",
+                },
+                timeout=10.0,  # 10 second timeout for Supabase call
+            )
+            response_data.raise_for_status()
+            logger.info(
+                f"Successfully submitted query to Supabase. "
+                f"thread_id={thread_id}, question_length={len(question)}, "
+                f"response_length={len(response)}"
+            )
+            return response_data.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            f"Supabase RPC call failed with status {e.response.status_code}: {e.response.text}"
+        )
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error submitting to Supabase: {e}", exc_info=True)
+        raise
 
 
 @router.post(
@@ -248,7 +312,7 @@ async def handler(
 
             return StreamingResponse(event_generator(), media_type="text/event-stream")
         else:
-
+            # Generate full response
             async def full_response():
                 import logging
                 logger = logging.getLogger(__name__)
@@ -423,7 +487,44 @@ async def handler(
                         sources=[],
                     )
 
-        return await full_response()
+            # Generate the response
+            response = await full_response()
+            
+            # Submit to Supabase if requested
+            returned_thread_id = None
+            if chat_request.submit_query:
+                try:
+                    # Prepare response string for Supabase
+                    # Use Pydantic's model_dump_json() to properly serialize all nested models
+                    response_str = response.model_dump_json()
+                    
+                    result = await submit_to_supabase(
+                        question=chat_request.question,
+                        response=response_str,
+                        thread_id=chat_request.thread_id,
+                        user_id=user_id,
+                    )
+                    # Extract thread_id from Supabase response
+                    # Supabase returns the UUID as a string, convert to UUID object
+                    if result:
+                        returned_thread_id = uuid.UUID(result) if isinstance(result, str) else result
+                    
+                    logger.info(
+                        f"Query submitted to Supabase successfully. "
+                        f"thread_id={returned_thread_id}, "
+                        f"was_new_thread={chat_request.thread_id is None}"
+                    )
+                except Exception as e:
+                    # Log error but don't fail the request - user still gets their response
+                    logger.error(
+                        f"Failed to submit query to Supabase: {e}. "
+                        f"Continuing with response. question='{chat_request.question[:50]}...'"
+                    )
+            
+            # Add thread_id to response
+            response.thread_id = returned_thread_id
+            
+            return response
     except asyncio.TimeoutError:
         # Decrement rate limit on timeout error
         if should_decrement_on_error:
