@@ -1,5 +1,6 @@
 from pydantic import BaseModel, HttpUrl, field_validator, Field
 from enum import Enum, auto
+import uuid
 
 from rag.app.models.data import SanityData
 from rag.app.services.prompts import PromptType
@@ -33,6 +34,14 @@ class ChatRequest(BaseModel):
             "If not specified, uses PINECONE_NAMESPACE from environment variables. "
             "Use /api/v1/config/available-configs to see available options."
         )
+    )
+    thread_id: uuid.UUID | None = Field(
+        default=None,
+        description="Optional thread ID to append query to. If not provided, a new thread will be created."
+    )
+    submit_query: bool = Field(
+        default=True,
+        description="Whether to save the query and response to Supabase. Set to false to skip persistence."
     )
 
     @classmethod
