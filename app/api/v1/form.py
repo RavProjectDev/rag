@@ -97,7 +97,7 @@ async def get_chunks(
         embedding = await generate_embedding(
             text=cleaned_question,
             configuration=embedding_configuration,
-            task_type="RETRIEVAL_QUERY",  # User query for search
+            task_type="RETRIEVAL_DOCUMENT",  # Changed to RETRIEVAL_DOCUMENT for Gemini
         )
         vector: list[float] = embedding.vector
         data: list[DocumentModel]
@@ -199,7 +199,7 @@ async def _generate(
         embedding = await generate_embedding(
             text=cleaned_question,
             configuration=embedding_configuration,
-            task_type="RETRIEVAL_QUERY",  # User query for search
+            task_type="RETRIEVAL_DOCUMENT",  # Changed to RETRIEVAL_DOCUMENT for Gemini
         )
 
     except Exception as e:

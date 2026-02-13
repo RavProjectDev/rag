@@ -90,7 +90,7 @@ async def generate_prompts(
     embedding = await generate_embedding(
         text=cleaned_question,
         configuration=embedding_config,
-        task_type="RETRIEVAL_QUERY",  # User query for search
+        task_type="RETRIEVAL_DOCUMENT",  # Changed to RETRIEVAL_DOCUMENT for Gemini
     )
 
     if embedding is None:

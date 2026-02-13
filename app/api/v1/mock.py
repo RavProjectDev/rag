@@ -80,7 +80,7 @@ async def helper(
         embedding = await generate_embedding(
             text=message,
             configuration=embedding_configuration,
-            task_type="RETRIEVAL_QUERY",  # User query for search
+            task_type="RETRIEVAL_DOCUMENT",  # Changed to RETRIEVAL_DOCUMENT for Gemini
         )
 
     except (
