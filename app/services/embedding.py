@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 import logging
 import random
@@ -25,6 +26,30 @@ from rag.app.schemas.data import EmbeddingConfiguration, Embedding
 # Constants
 DEFAULT_TIMEOUT_SECONDS = 10
 MOCK_EMBEDDING_DIMENSIONALITY = 784
+
+# Module-level singletons — created once per process
+_openai_client: AsyncOpenAI | None = None
+_cohere_client: cohere.Client | None = None
+
+
+def _get_openai_client() -> AsyncOpenAI:
+    global _openai_client
+    if _openai_client is None:
+        settings = get_settings()
+        if not settings.openai_api_key:
+            raise EmbeddingException("OpenAI API key not configured")
+        _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+    return _openai_client
+
+
+def _get_cohere_client() -> cohere.Client:
+    global _cohere_client
+    if _cohere_client is None:
+        settings = get_settings()
+        if not settings.cohere_api_key:
+            raise EmbeddingException("Cohere API key not configured")
+        _cohere_client = cohere.Client(settings.cohere_api_key)
+    return _cohere_client
 
 
 @dataclass
@@ -167,33 +192,33 @@ async def cohere_embedding(text_data: str, task_type: str = "RETRIEVAL_DOCUMENT"
     logger = logging.getLogger(__name__)
     model_name = "embed-multilingual-v3.0"
     logger.info(f"[EMBEDDING] Starting Cohere embedding generation, model={model_name}, text_length={len(text_data)}, task_type={task_type}")
-    
-    settings = get_settings()
-    if not settings.cohere_api_key:
-        raise EmbeddingException("Cohere API key not configured")
-    
+
     # Map task_type to Cohere's input_type
     input_type_map = {
         "RETRIEVAL_QUERY": "search_query",
-        "RETRIEVAL_DOCUMENT": "search_document"
+        "RETRIEVAL_DOCUMENT": "search_document",
     }
     input_type = input_type_map.get(task_type, "search_document")
-    
+
     try:
-        co = cohere.Client(settings.cohere_api_key)
+        co = _get_cohere_client()
         logger.info(f"[EMBEDDING] Calling Cohere API with model={model_name}, input_type={input_type}")
-        
-        response = co.embed(
+
+        # cohere.Client is synchronous — run in a thread to avoid blocking the event loop
+        response = await asyncio.to_thread(
+            co.embed,
             texts=[text_data],
             model=model_name,
             input_type=input_type,
-            embedding_types=["float"]
+            embedding_types=["float"],
         )
-        
+
         vector = response.embeddings.float[0]
         logger.info(f"[EMBEDDING] Successfully generated Cohere embedding, dimension={len(vector)}")
         return vector
-        
+
+    except EmbeddingException:
+        raise
     except Exception as e:
         logger.error(f"[EMBEDDING ERROR] Cohere API error: {str(e)}", exc_info=True)
         raise EmbeddingAPIException(f"Cohere API error: {str(e)}")
@@ -205,7 +230,7 @@ async def openai_embedding(text_data: str, task_type: str = "RETRIEVAL_DOCUMENT"
 
     Args:
         text_data: Text to generate embeddings for
-        task_type: The task type (currently not used by OpenAI API, kept for consistency)
+        task_type: Not used by the OpenAI API; kept for a consistent signature across providers.
 
     Returns:
         List of float values representing the embedding
@@ -217,25 +242,23 @@ async def openai_embedding(text_data: str, task_type: str = "RETRIEVAL_DOCUMENT"
     """
     logger = logging.getLogger(__name__)
     model_name = "text-embedding-3-large"
-    logger.info(f"[EMBEDDING] Starting OpenAI embedding generation, model={model_name}, text_length={len(text_data)}, task_type={task_type}")
-    
-    settings = get_settings()
-    if not settings.openai_api_key:
-        raise EmbeddingException("OpenAI API key not configured")
-    
+    logger.info(f"[EMBEDDING] Starting OpenAI embedding generation, model={model_name}, text_length={len(text_data)}")
+
     try:
-        client = AsyncOpenAI(api_key=settings.openai_api_key)
+        client = _get_openai_client()
         logger.info(f"[EMBEDDING] Calling OpenAI API with model={model_name}")
-        
+
         response = await client.embeddings.create(
             input=text_data,
-            model=model_name
+            model=model_name,
         )
-        
+
         vector = response.data[0].embedding
         logger.info(f"[EMBEDDING] Successfully generated OpenAI embedding, dimension={len(vector)}")
         return vector
-        
+
+    except EmbeddingException:
+        raise
     except Exception as e:
         logger.error(f"[EMBEDDING ERROR] OpenAI API error: {str(e)}", exc_info=True)
         raise EmbeddingAPIException(f"OpenAI API error: {str(e)}")
