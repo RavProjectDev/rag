@@ -18,7 +18,7 @@ from rag.app.schemas.data import (
     VectorEmbedding,
     Embedding,
 )
-from rag.app.services.data_upload_service import (
+from rag.scripts.lib.ingest import (
     fetch_transcript,
     process_transcript_contents,
 )
