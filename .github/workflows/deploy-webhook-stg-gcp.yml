@@ -1,0 +1,86 @@
+name: Deploy Webhook API to Google Cloud Run (Staging)
+
+on:
+  push:
+    branches:
+      - hooks-mngmt
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  SERVICE_NAME: rag-webhook-stg
+  DOCKER_IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/rag
+  GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+jobs:
+  deploy:
+    name: Build and Deploy Webhook to Cloud Run (Staging)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          no-cache: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:webhook-stg-latest
+            ${{ env.DOCKER_IMAGE }}:webhook-${{ github.sha }}
+          platforms: linux/amd64
+
+      - name: Deploy Webhook to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image=${{ env.DOCKER_IMAGE }}:webhook-${{ github.sha }} \
+            --platform=managed \
+            --region=${{ env.GCP_REGION }} \
+            --allow-unauthenticated \
+            --service-account=${{ env.GCP_SERVICE_ACCOUNT }} \
+            --memory=1Gi \
+            --cpu=1 \
+            --min-instances=0 \
+            --max-instances=5 \
+            --port=8080 \
+            --timeout=600 \
+            --set-env-vars="APP_MODULE=rag.app.webhook:app,ENVIRONMENT=STG,DATABASE_CONFIGURATION=pinecone,PINECONE_INDEX_NAME=gemini,CHUNKING_STRATEGY=fixed_size" \
+            --set-secrets="MONGODB_URI=MONGODB_URI:latest" \
+            --set-secrets="MONGODB_DB_NAME=MONGODB_DB_NAME:latest" \
+            --set-secrets="PINECONE_API_KEY=PINECONE_API_KEY:latest" \
+            --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+            --set-secrets="GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest" \
+            --set-secrets="VERTEX_REGION=VERTEX_REGION:latest"
+
+      - name: Show service URL
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region=${{ env.GCP_REGION }} \
+            --format='value(status.url)')
+          echo "Webhook API deployed successfully!"
+          echo "Service URL: $SERVICE_URL"
+          echo "Health check: $SERVICE_URL/api/v1/health"
+          echo "Webhook endpoint: $SERVICE_URL/api/v1/webhook/create"
