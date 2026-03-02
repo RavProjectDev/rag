@@ -13,7 +13,7 @@ from rag.app.core.config import get_settings
 from rag.app.db.mongodb_connection import MongoEmbeddingStore
 from rag.app.db.pinecone_connection import PineconeEmbeddingStore
 from rag.app.schemas.data import DataBaseConfiguration, EmbeddingConfiguration, ChunkingStrategy
-from rag.app.services.data_upload_service import upload_documents
+from rag.scripts.lib.ingest import upload_documents
 from rag.app.models.data import SanityData
 
 logger = logging.getLogger(__name__)

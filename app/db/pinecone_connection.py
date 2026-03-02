@@ -235,7 +235,7 @@ class PineconeEmbeddingStore(EmbeddingConnection):
         embedded_data: List[float],
         name_spaces: list[str] | None = None,
         k=7,
-        threshold: float = 0.65,
+        threshold: float = 0.35,
         index_override: str | None = None,
         namespace_override: str | None = None,
     ) -> list[DocumentModel]:
