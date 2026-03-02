@@ -5,6 +5,10 @@ All routes live under /api/v1/webhook (registered in app/webhook.py).
 
 Each handler returns 200 immediately and processes in the background so the
 webhook sender (Sanity) doesn't time out waiting for the embed pipeline.
+
+embedding_configuration and chunking_strategy are read from app.state — they
+are set at startup by create_webhook_lifespan, which fetches the live values
+from the RAG API's /api/v1/info/ endpoint.
 """
 
 import logging
@@ -26,14 +30,15 @@ async def webhook_create(
     request: Request,
 ):
     conn = request.app.state.embedding_conn
-    settings = request.app.state.settings
+    embedding_configuration = request.app.state.embedding_configuration
+    chunking_strategy = request.app.state.chunking_strategy
     logger.info(f"[WEBHOOK] create received: slug={payload.slug} id={payload.id}")
     background_tasks.add_task(
         sync_document,
         payload,
         conn,
-        settings.embedding_configuration,
-        settings.chunking_strategy,
+        embedding_configuration,
+        chunking_strategy,
         conn.chunks_collection,
     )
     return {"status": "accepted"}
@@ -46,14 +51,15 @@ async def webhook_update(
     request: Request,
 ):
     conn = request.app.state.embedding_conn
-    settings = request.app.state.settings
+    embedding_configuration = request.app.state.embedding_configuration
+    chunking_strategy = request.app.state.chunking_strategy
     logger.info(f"[WEBHOOK] update received: slug={payload.slug} id={payload.id}")
     background_tasks.add_task(
         sync_document,
         payload,
         conn,
-        settings.embedding_configuration,
-        settings.chunking_strategy,
+        embedding_configuration,
+        chunking_strategy,
         conn.chunks_collection,
     )
     return {"status": "accepted"}
