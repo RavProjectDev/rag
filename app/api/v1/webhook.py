@@ -20,8 +20,8 @@ from typing import NamedTuple, Any
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Body
 
-from rag.app.models.data import SanityData
 from rag.app.schemas.data import EmbeddingConfiguration, ChunkingStrategy
+from rag.app.schemas.requests import SanityWebhookPayload
 from rag.app.services.sync_service.sync_db import sync_document
 
 logger = logging.getLogger(__name__)
@@ -80,16 +80,17 @@ async def webhook_info(config: LiveConfig = Depends(get_live_config)):
 
 @router.post("/create")
 async def webhook_create(
-    payload: SanityData,
+    payload: SanityWebhookPayload,
     background_tasks: BackgroundTasks,
     request: Request,
     config: LiveConfig = Depends(get_live_config),
 ):
     conn = request.app.state.embedding_conn
-    logger.info(f"[WEBHOOK] create received: slug={payload.slug} id={payload.id}")
+    sanity_data = payload.to_sanity_data()
+    logger.info(f"[WEBHOOK] create received: slug={sanity_data.slug} id={sanity_data.id}")
     background_tasks.add_task(
         sync_document,
-        payload,
+        sanity_data,
         conn,
         config.embedding_configuration,
         config.chunking_strategy,
@@ -100,16 +101,17 @@ async def webhook_create(
 
 @router.patch("/update")
 async def webhook_update(
-    payload: SanityData,
+    payload: SanityWebhookPayload,
     background_tasks: BackgroundTasks,
     request: Request,
     config: LiveConfig = Depends(get_live_config),
 ):
     conn = request.app.state.embedding_conn
-    logger.info(f"[WEBHOOK] update received: slug={payload.slug} id={payload.id}")
+    sanity_data = payload.to_sanity_data()
+    logger.info(f"[WEBHOOK] update received: slug={sanity_data.slug} id={sanity_data.id}")
     background_tasks.add_task(
         sync_document,
-        payload,
+        sanity_data,
         conn,
         config.embedding_configuration,
         config.chunking_strategy,
@@ -120,13 +122,14 @@ async def webhook_update(
 
 @router.delete("/delete")
 async def webhook_delete(
-    payload: SanityData,
+    payload: SanityWebhookPayload,
     background_tasks: BackgroundTasks,
     request: Request,
 ):
     conn = request.app.state.embedding_conn
-    logger.info(f"[WEBHOOK] delete received: slug={payload.slug} id={payload.id}")
-    background_tasks.add_task(conn.delete_document, payload.id)
+    sanity_data = payload.to_sanity_data()
+    logger.info(f"[WEBHOOK] delete received: slug={sanity_data.slug} id={sanity_data.id}")
+    background_tasks.add_task(conn.delete_document, sanity_data.id)
     return {"status": "accepted"}
 
 

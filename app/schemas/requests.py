@@ -1,9 +1,32 @@
 from pydantic import BaseModel, HttpUrl, field_validator, Field
 from enum import Enum, auto
+from typing import Optional
 import uuid
 
 from rag.app.models.data import SanityData
 from rag.app.services.prompts import PromptType
+
+
+class SanityWebhookPayload(BaseModel):
+    """Request schema for Sanity CMS webhooks. Accepts Sanity's _id field and converts to SanityData."""
+    id: str = Field(alias="_id")
+    updated_at: Optional[str] = Field(alias="_updatedAt", default=None)
+    slug: str
+    title: str
+    transcriptURL: HttpUrl
+    hash: Optional[str] = None
+
+    model_config = {"populate_by_name": True}
+
+    def to_sanity_data(self) -> SanityData:
+        return SanityData(
+            id=self.id,
+            _updatedAt=self.updated_at,
+            slug=self.slug,
+            title=self.title,
+            transcriptURL=self.transcriptURL,
+            hash=self.hash,
+        )
 
 
 class TypeOfRequest(str, Enum):
