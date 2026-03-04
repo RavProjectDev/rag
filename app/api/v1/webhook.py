@@ -120,6 +120,15 @@ async def webhook_update(
     return {"status": "accepted"}
 
 
+async def _delete_document_and_chunks(conn, sanity_id: str, sanity_slug: str) -> None:
+    await conn.delete_document(sanity_id)
+    if conn.chunks_collection is not None:
+        result = await conn.chunks_collection.delete_many({"sanity_slug": sanity_slug})
+        logger.info(f"[WEBHOOK] Removed {result.deleted_count} chunk records from MongoDB for slug='{sanity_slug}'")
+    else:
+        logger.warning("[WEBHOOK] No chunks_collection available — MongoDB chunk records not cleaned up")
+
+
 @router.delete("/delete")
 async def webhook_delete(
     payload: SanityWebhookPayload,
@@ -129,7 +138,7 @@ async def webhook_delete(
     conn = request.app.state.embedding_conn
     sanity_data = payload.to_sanity_data()
     logger.info(f"[WEBHOOK] delete received: slug={sanity_data.slug} id={sanity_data.id}")
-    background_tasks.add_task(conn.delete_document, sanity_data.id)
+    background_tasks.add_task(_delete_document_and_chunks, conn, sanity_data.id, sanity_data.slug)
     return {"status": "accepted"}
 
 
