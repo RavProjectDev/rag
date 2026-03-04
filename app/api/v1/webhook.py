@@ -14,10 +14,11 @@ strategy. Falls back to the cached startup values if the RAG API is unreachable.
 """
 
 import logging
-from typing import NamedTuple
+import json
+from typing import NamedTuple, Any
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Body
 
 from rag.app.models.data import SanityData
 from rag.app.schemas.data import EmbeddingConfiguration, ChunkingStrategy
@@ -127,3 +128,26 @@ async def webhook_delete(
     logger.info(f"[WEBHOOK] delete received: slug={payload.slug} id={payload.id}")
     background_tasks.add_task(conn.delete_document, payload.id)
     return {"status": "accepted"}
+
+
+@router.post("/mock")
+async def webhook_mock(payload: Any = Body(...)):
+    """
+    Mock endpoint for debugging webhook payloads.
+    Accepts any JSON and logs it without validation or processing.
+    """
+    logger.info("[WEBHOOK MOCK] Received request:")
+    logger.info(f"[WEBHOOK MOCK] Payload type: {type(payload)}")
+    logger.info(f"[WEBHOOK MOCK] Payload: {json.dumps(payload, indent=2)}")
+    
+    print("\n" + "="*80)
+    print("WEBHOOK MOCK - Request Body:")
+    print("="*80)
+    print(json.dumps(payload, indent=2))
+    print("="*80 + "\n")
+    
+    return {
+        "status": "received",
+        "message": "Payload logged successfully",
+        "payload": payload
+    }
