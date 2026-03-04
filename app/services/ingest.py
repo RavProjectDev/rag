@@ -9,6 +9,7 @@ Used by:
 import asyncio
 import logging
 import random
+import hashlib
 
 import httpx
 
@@ -163,6 +164,11 @@ async def upload_document(
 ):
     logging.info(f"[INGEST] Uploading document: {doc.title} (id: {doc.id})...")
     contents = await fetch_transcript(str(doc.transcriptURL))
+    
+    # Compute document hash from transcript content
+    doc.hash = hashlib.sha256(contents.encode('utf-8')).hexdigest()
+    logging.info(f"[INGEST] Computed document hash: {doc.hash[:16]}...")
+    
     chunks = process_transcript_contents(doc.title, contents, chunking_strategy)
     await generate_and_insert_embeddings(
         chunks, embedding_configuration, doc, connection, chunking_strategy

@@ -16,7 +16,7 @@ class SanityData(BaseModel):
     slug: str
     title: str
     transcriptURL: HttpUrl
-    hash: str
+    hash: Optional[str] = None  # Computed locally from transcript content
 
     class Config:
         allow_population_by_field_name = True

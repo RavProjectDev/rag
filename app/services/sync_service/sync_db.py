@@ -3,6 +3,7 @@ import os
 import asyncio
 import certifi
 import httpx
+import hashlib
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 from typing import Set, List
@@ -285,6 +286,10 @@ async def sync_document(
     # Fetch and chunk the document
     logger.info(f"[SYNC] Fetching transcript for '{sanity_data.title}'...")
     transcript_content = await fetch_transcript(str(sanity_data.transcriptURL))
+    
+    # Compute document hash from transcript content
+    sanity_data.hash = hashlib.sha256(transcript_content.encode('utf-8')).hexdigest()
+    logger.info(f"[SYNC] Computed document hash: {sanity_data.hash[:16]}...")
     
     logger.info(f"[SYNC] Chunking document with strategy: {chunking_strategy.value}")
     chunks = process_transcript_contents(
