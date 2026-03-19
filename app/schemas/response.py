@@ -118,6 +118,7 @@ class ConfigInfoResponse(BaseModel):
     chunking_strategy: str = Field(..., description="Current chunking strategy configuration")
     database_backend: str = Field(..., description="Current database backend (mongo or pinecone)")
     environment: str = Field(..., description="Current environment (PRD, STG, TEST)")
+    llm_configuration: str = Field(..., description="Current LLM model configuration")
 
 
 class NamespaceDetail(BaseModel):

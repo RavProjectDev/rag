@@ -25,4 +25,5 @@ def get_config_info(request: Request) -> ConfigInfoResponse:
         chunking_strategy=settings.chunking_strategy.value,
         database_backend=settings.database_configuration.value,
         environment=settings.environment.value,
+        llm_configuration=settings.llm_configuration.value,
     )
