@@ -69,7 +69,7 @@ jobs:
             --timeout=300 \
             --port=8080 \
             --concurrency=80 \
-            --set-env-vars="ENVIRONMENT=PRD,DATABASE_CONFIGURATION=pinecone,PINECONE_INDEX_NAME=gemini,CHUNKING_STRATEGY=fixed_size,AUTH_MODE=prd" \
+            --set-env-vars="ENVIRONMENT=PRD,DATABASE_CONFIGURATION=pinecone,PINECONE_INDEX_NAME=gemini,CHUNKING_STRATEGY=fixed_size,AUTH_MODE=prd,LLM_CONFIGURATION=gemini-2.5-flash" \
             --set-secrets="OPENAI_API_KEY=OPENAI_API_KEY:latest" \
             --set-secrets="MONGODB_URI=MONGODB_URI:latest" \
             --set-secrets="MONGODB_DB_NAME=MONGODB_DB_NAME:latest" \
