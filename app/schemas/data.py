@@ -126,6 +126,8 @@ class EmbeddingConfiguration(Enum):
 
 class LLMModel(Enum):
     GPT_4 = "gpt-5.2-2025-12-11"
+    GEMINI_FLASH = "gemini-2.5-flash"
+    GEMINI_PRO = "gemini-2.5-pro"
     MOCK = "mock"
 
 
