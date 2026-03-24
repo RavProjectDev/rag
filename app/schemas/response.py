@@ -33,6 +33,7 @@ class SourceItem(BaseModel):
     full_text: str  # Full text with bolded used quotes (using **text** for bold)
     used_quotes: list[UsedQuote]  # List of individual quotes that were used
     timestamp_range: Optional[str] = None  # Overall timestamp range for the full document
+    score: Optional[float] = None  # Cosine similarity score from vector retrieval
 
 
 class ChatResponse(BaseModel):

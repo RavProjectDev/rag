@@ -437,6 +437,7 @@ async def handler(
                                 "full_text": full_text_with_highlights,
                                 "used_quotes": used_quotes,
                                 "timestamp_range": timestamp_range,
+                                "score": original_doc.score,
                             }
                             sources.append(source_entry)
                             

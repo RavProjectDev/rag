@@ -110,6 +110,7 @@ class ChunkingStrategy(Enum):
     DIVIDED = "divided"  # Large chunks divided into sub-chunks with shared context
     SENTENCE_FIXED_REGEX = "sentence_fixed_regex"  # Sentence-aware chunking with regex-based detection
     SENTENCE_DIVIDED_REGEX = "sentence_divided_regex"  # Sentence-aware divided chunking with regex
+    AGENTIC = "agentic"  # LLM-guided chunking: model identifies logical section boundaries
     # Future strategies can be added here:
     # SEMANTIC = "semantic"  # Semantic-based chunking
     # SLIDING_WINDOW = "sliding_window"  # Overlapping window chunking
