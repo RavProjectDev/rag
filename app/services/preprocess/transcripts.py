@@ -31,6 +31,10 @@ from rag.app.services.preprocess.strategies.agentic import (
     build_chunks_agentic_srt,
     build_chunks_agentic_txt,
 )
+from rag.app.services.preprocess.strategies.agentic_multi_call import (
+    build_chunks_agentic_multi_call_srt,
+    build_chunks_agentic_multi_call_txt,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -277,6 +281,13 @@ def chunk_srt(content: tuple[str, str], strategy: ChunkingStrategy = ChunkingStr
             build_chunk_lines_fn=_build_chunk_lines,
             compute_text_hash_fn=_compute_text_hash,
         )
+    elif strategy == ChunkingStrategy.AGENTIC_MULTI_CALL:
+        chunks = build_chunks_agentic_multi_call_srt(
+            sub_entries=_flatten_subs(subs),
+            name_space=file_name,
+            build_chunk_lines_fn=_build_chunk_lines,
+            compute_text_hash_fn=_compute_text_hash,
+        )
     else:
         raise ValueError(f"Unsupported chunking strategy for SRT: {strategy.value}")
     
@@ -348,6 +359,13 @@ def chunk_txt(content: tuple[str, str], strategy: ChunkingStrategy = ChunkingStr
         )
     elif strategy == ChunkingStrategy.AGENTIC:
         return build_chunks_agentic_txt(
+            tokens=tokens,
+            encoder=encoder,
+            name_space=file_name,
+            compute_text_hash_fn=_compute_text_hash,
+        )
+    elif strategy == ChunkingStrategy.AGENTIC_MULTI_CALL:
+        return build_chunks_agentic_multi_call_txt(
             tokens=tokens,
             encoder=encoder,
             name_space=file_name,

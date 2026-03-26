@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 import httpx
 
@@ -340,6 +341,7 @@ async def handler(
                     try:
                         parsed = json.loads(llm_response)
                         main_text = parsed.get("main_text", "")
+                        main_text = re.sub(r'\s*\[[\d,\s]+\]', '', main_text).strip()
                         source_numbers = parsed.get("source_numbers", [])
                         
                         logger.info(f"[FULL RESPONSE] LLM returned {len(source_numbers)} source numbers: {source_numbers}")
