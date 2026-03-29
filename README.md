@@ -678,12 +678,3 @@ Deployments build the Docker image, push it to a container registry, and update 
 
 ---
 
-## Pre-commit Hooks
-
-The repository ships with a `.pre-commit-config.yaml`. Install hooks once after cloning:
-
-```bash
-pre-commit install
-```
-
-A custom hook in `githooks/pre-commit` is also available if you prefer to manage hooks manually.
