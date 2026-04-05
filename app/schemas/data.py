@@ -110,6 +110,8 @@ class ChunkingStrategy(Enum):
     DIVIDED = "divided"  # Large chunks divided into sub-chunks with shared context
     SENTENCE_FIXED_REGEX = "sentence_fixed_regex"  # Sentence-aware chunking with regex-based detection
     SENTENCE_DIVIDED_REGEX = "sentence_divided_regex"  # Sentence-aware divided chunking with regex
+    AGENTIC = "agentic"  # LLM-guided chunking: model identifies logical section boundaries
+    AGENTIC_MULTI_CALL = "agentic_multi_call"  # Two-stage: boundary detection + per-section LLM rewrite for retrieval-optimised text_to_embed
     # Future strategies can be added here:
     # SEMANTIC = "semantic"  # Semantic-based chunking
     # SLIDING_WINDOW = "sliding_window"  # Overlapping window chunking
@@ -126,6 +128,8 @@ class EmbeddingConfiguration(Enum):
 
 class LLMModel(Enum):
     GPT_4 = "gpt-5.2-2025-12-11"
+    GEMINI_FLASH = "gemini-2.5-flash"
+    GEMINI_PRO = "gemini-2.5-pro"
     MOCK = "mock"
 
 

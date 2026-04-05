@@ -4,6 +4,8 @@ from contextlib import nullcontext
 from functools import lru_cache
 from typing import Union, Optional, Dict, Any
 
+from google import genai
+from google.genai import types as genai_types
 from openai import (
     AsyncOpenAI,
     APIError,
@@ -43,6 +45,22 @@ def get_openai_client() -> AsyncOpenAI:
         return AsyncOpenAI(api_key=settings.openai_api_key)
     except (OpenAIError, AuthenticationError) as e:
         raise LLMConnectionException("OpenAI API connection failed: {}".format(e))
+
+
+@lru_cache()
+def get_gemini_client() -> genai.Client:
+    try:
+        settings = get_settings()
+    except (AttributeError, KeyError, TypeError) as e:
+        raise LLMBaseException("Failed to get data from settings")
+    try:
+        return genai.Client(
+            vertexai=True,
+            project=settings.google_cloud_project_id,
+            location="global",
+        )
+    except Exception as e:
+        raise LLMConnectionException("Gemini API connection failed: {}".format(e))
 
 
 def get_chat_response_json_schema(require_timestamp: bool = False) -> Dict[str, Any]:
@@ -116,6 +134,14 @@ async def get_llm_response(
                 )
             except Exception as e:
                 logging.error(f"Error in get_gpt_response: {e}")
+                raise
+        elif model in (LLMModel.GEMINI_FLASH, LLMModel.GEMINI_PRO):
+            try:
+                response, metrics = await get_gemini_response(
+                    prompt=prompt, model=model.value, response_format=response_format
+                )
+            except Exception as e:
+                logging.error(f"Error in get_gemini_response: {e}")
                 raise
         elif model == LLMModel.MOCK:
             response, metrics = get_mock_response()
@@ -197,6 +223,66 @@ async def get_gpt_response(
 
 
 # ---------------------------------------------------------------
+# Gemini call
+# ---------------------------------------------------------------
+
+_GEMINI_SYSTEM_PROMPT = "You are a helpful assistant knowledgeable in Rav Soloveitchik's teachings."
+
+
+async def get_gemini_response(
+    prompt: str,
+    model: str,
+    response_format: Optional[Dict[str, Any]] = None,
+) -> tuple[str, dict | None]:
+    """
+    Fetches a completion from Gemini.
+
+    Args:
+        prompt: The prompt to send to the LLM
+        model: The Gemini model name (e.g. "gemini-2.0-flash")
+        response_format: Optional OpenAI-style JSON schema dict; converted to Gemini's
+                         response_mime_type + response_schema if present.
+    """
+    try:
+        client = get_gemini_client()
+
+        config_kwargs: Dict[str, Any] = {
+            "system_instruction": _GEMINI_SYSTEM_PROMPT,
+        }
+
+        if response_format and response_format.get("type") == "json_schema":
+            config_kwargs["response_mime_type"] = "application/json"
+            schema = dict(response_format["json_schema"]["schema"])
+            schema.pop("additionalProperties", None)
+            config_kwargs["response_schema"] = schema
+
+        generation_config = genai_types.GenerateContentConfig(**config_kwargs)
+
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model=model,
+            contents=prompt,
+            config=generation_config,
+        )
+    except Exception as e:
+        raise LLMBaseException(f"Failed to get data from Gemini: {e}")
+
+    result = response.text
+    if not result:
+        return "Error: Received null response from Gemini", None
+
+    usage = response.usage_metadata
+    metrics = {
+        "prompt_tokens": usage.prompt_token_count if usage else None,
+        "completion_tokens": usage.candidates_token_count if usage else None,
+        "total_tokens": usage.total_token_count if usage else None,
+        "input_model": model,
+        "model": model,
+    }
+    return result, metrics
+
+
+# ---------------------------------------------------------------
 # Mock LLM response
 # ---------------------------------------------------------------
 
@@ -227,13 +313,28 @@ async def stream_llm_response(
 ):
     """
     Streams completion from the LLM as text chunks.
-    
+
     Args:
         metrics_connection: Metrics connection for tracking
         prompt: The prompt to send to the LLM
         model: The model name to use
         response_format: Optional response format for structured outputs (e.g., JSON schema)
     """
+    settings = get_settings()
+
+    if model.startswith("gemini-"):
+        yield_from = _stream_gemini_response(
+            metrics_connection=metrics_connection,
+            prompt=prompt,
+            model=model,
+            response_format=response_format,
+            timeout=settings.external_api_timeout,
+        )
+        async for token in yield_from:
+            yield token
+        return
+
+    # --- OpenAI path ---
     client = get_openai_client()
     messages = [
         ChatCompletionSystemMessageParam(
@@ -245,7 +346,6 @@ async def stream_llm_response(
             content=prompt,
         ),
     ]
-    settings = get_settings()
 
     try:
         create_kwargs = {
@@ -253,10 +353,10 @@ async def stream_llm_response(
             "messages": messages,
             "stream": True,
         }
-        
+
         if response_format is not None:
             create_kwargs["response_format"] = response_format
-        
+
         # Make the async streaming API call with timeout
         response = await asyncio.wait_for(
             client.chat.completions.create(**create_kwargs),
@@ -303,6 +403,73 @@ async def stream_llm_response(
         raise LLMConnectionException(f"OpenAI API error: {str(e)}")
     except Exception as e:
         raise LLMBaseException(f"Unexpected error: {str(e)}")
+
+
+async def _stream_gemini_response(
+    metrics_connection: MetricsConnection,
+    prompt: str,
+    model: str,
+    response_format: Optional[Dict[str, Any]],
+    timeout: int,
+):
+    """
+    Streams completion from the Gemini API as text chunks.
+    Gemini's SDK streaming is synchronous, so chunks are collected in a thread
+    and yielded back to the async caller.
+    """
+    client = get_gemini_client()
+
+    config_kwargs: Dict[str, Any] = {
+        "system_instruction": _GEMINI_SYSTEM_PROMPT,
+    }
+    if response_format and response_format.get("type") == "json_schema":
+        config_kwargs["response_mime_type"] = "application/json"
+        schema = dict(response_format["json_schema"]["schema"])
+        schema.pop("additionalProperties", None)
+        config_kwargs["response_schema"] = schema
+
+    generation_config = genai_types.GenerateContentConfig(**config_kwargs)
+
+    import queue
+    import threading
+
+    token_queue: queue.Queue = queue.Queue()
+
+    def _run_stream():
+        try:
+            for chunk in client.models.generate_content_stream(
+                model=model,
+                contents=prompt,
+                config=generation_config,
+            ):
+                if chunk.text:
+                    token_queue.put(chunk.text)
+            token_queue.put(None)  # sentinel
+        except Exception as exc:
+            token_queue.put(exc)
+
+    thread = threading.Thread(target=_run_stream, daemon=True)
+    thread.start()
+
+    try:
+        async with metrics_connection.timed(metric_type="LLM_STREAM", data={}):
+            while True:
+                item = await asyncio.wait_for(
+                    asyncio.to_thread(token_queue.get),
+                    timeout=timeout,
+                )
+                if item is None:
+                    break
+                if isinstance(item, Exception):
+                    raise LLMBaseException(f"Gemini streaming error: {item}")
+                yield item
+        yield "[DONE]"
+    except asyncio.TimeoutError:
+        raise LLMTimeoutException(f"Gemini streaming timed out after {timeout} seconds")
+    except LLMBaseException:
+        raise
+    except Exception as e:
+        raise LLMBaseException(f"Unexpected error during Gemini streaming: {e}")
 
 
 # ---------------------------------------------------------------
