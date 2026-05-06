@@ -95,7 +95,7 @@ class Settings(SharedSettings):
     upstash_redis_rest_token: str | None = None
     rate_limit_max_requests: int = 10000
     rate_limit_window_seconds: int = 3600
-    user_rate_limit_max_requests_per_month: int = 10000
+    user_rate_limit_max_requests_per_month: int = 36
 
     # Debug
     dev_outputs: bool = False
