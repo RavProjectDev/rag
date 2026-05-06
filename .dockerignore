@@ -1,5 +1,16 @@
+.git
+.github/
+.gitignore
+
 *.json
 !gcloud-key.json
-dev_outputs/
-scripts/
+
 .env
+dev_outputs/
+docs/
+tests/
+
+# Exclude all scripts by default, then include only sync-job assets.
+scripts/*
+!scripts/supabase_sync/
+!scripts/supabase_sync/**
