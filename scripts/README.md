@@ -268,3 +268,65 @@ INFO:rag.app.db.pinecone_connection:[PINECONE] Using index=openai (embedding_mod
 4. **Index Management**: For Pinecone, ensure indexes exist before running
 5. **API Keys**: Make sure the correct API key is set for your chosen model
 
+---
+
+## supabase_sync/rate_limit_batch_sync.py
+
+Batch-sync monthly user rate-limit usage from Redis to Supabase.
+
+### Purpose
+
+This script:
+- Scans Redis keys in the format `rate_limit:YYYY-MM:<user_id>`
+- Reads each user's usage count for the selected month
+- Upserts rows into Supabase table `rate_limit_usage`
+- Supports dry-run mode for safe validation
+
+### Usage
+
+```bash
+# Sync current month
+python scripts/supabase_sync/rate_limit_batch_sync.py
+
+# Sync a specific month
+python scripts/supabase_sync/rate_limit_batch_sync.py --year 2026 --month 4
+
+# Preview only (no writes)
+python scripts/supabase_sync/rate_limit_batch_sync.py --dry-run
+```
+
+### Optional Flags
+
+- `--scan-count`: Redis SCAN page size (default `500`)
+- `--write-batch-size`: Supabase batch upsert size (default `500`)
+- `--year` + `--month`: Override target period (must be provided together)
+
+### Required Environment Variables
+
+```bash
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+
+# Optional period override (used when CLI --year/--month are not provided)
+RATE_LIMIT_SYNC_YEAR=2026
+RATE_LIMIT_SYNC_MONTH=4
+```
+
+Period selection precedence:
+1. CLI flags (`--year`, `--month`)
+2. Env vars (`RATE_LIMIT_SYNC_YEAR`, `RATE_LIMIT_SYNC_MONTH`)
+3. Current ET month/year
+
+### Supabase Table
+
+Expected table: `rate_limit_usage` with unique key `(user_id, year, month)`.
+
+### Container Build Notes
+
+- Job image Dockerfile: `scripts/supabase_sync/Dockerfile`
+- Dedicated dependencies file: `requirements-rate-limit-sync.txt`
+- Build context filtering is controlled by root `.dockerignore` (includes only `scripts/supabase_sync/` under `scripts/`).
+- Monthly limit persisted to Supabase is fixed to `10000` in the script.
+
