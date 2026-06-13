@@ -22,6 +22,11 @@
 
 set -euo pipefail
 
+if ! docker info > /dev/null 2>&1; then
+  echo -e "\033[0;31m[ERROR]\033[0m  Docker is not running. Start Docker Desktop and re-run."
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.smoke.yml"
 BASE_URL="http://localhost:8080"
