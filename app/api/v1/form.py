@@ -8,7 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from starlette import status
 
 from rag.app import form_data
-from rag.app.core.config import COLLECTIONS
+from rag.app.core.constants.mongo import COLLECTIONS
 from rag.app.core.config import get_settings
 from rag.app.db.connections import EmbeddingConnection, MetricsConnection
 from rag.app.db.mongodb_connection import MongoEmbeddingStore
@@ -33,7 +33,6 @@ from rag.app.schemas.form import (
     CommentModel,
     FormRequestType,
 )
-from rag.app.schemas.requests import TypeOfRequest
 from rag.app.schemas.response import ChatResponse, TranscriptData, FormFullResponse
 from rag.app.schemas.response import (
     FormGetChunksResponse,

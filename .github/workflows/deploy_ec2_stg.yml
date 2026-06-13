@@ -68,19 +68,15 @@ jobs:
             --label environment=stg \
             -v /tmp/gcloud-key.json:/rag/credentials/gcloud-key.json:ro \
             -p ${{ env.PORT }}:8000 \
-            -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-            -e SBERT_API_URL="${{ secrets.SBERT_API_URL }}" \
-            -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
-            -e MONGODB_DB_NAME="${{ secrets.MONGODB_DB_NAME }}" \
-            -e MONGODB_VECTOR_COLLECTION="${{ secrets.MONGODB_VECTOR_COLLECTION }}" \
-            -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
-            -e GOOGLE_CLOUD_PROJECT_ID="${{ secrets.GOOGLE_CLOUD_PROJECT_ID }}" \
-            -e VERTEX_REGION="${{ secrets.VERTEX_REGION }}" \
+            -e ENVIRONMENT="STG" \
             -e GOOGLE_APPLICATION_CREDENTIALS="/rag/credentials/gcloud-key.json" \
-            -e ENVIORNMENT="STG" \
-            -e AUTH_MODE="prd" \
+            -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+            -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+            -e PINECONE_API_KEY="${{ secrets.PINECONE_API_KEY }}" \
+            -e UPSTASH_REDIS_REST_TOKEN="${{ secrets.UPSTASH_REDIS_REST_TOKEN }}" \
             -e SUPABASE_SERVICE_ROLE_KEY="${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
-            -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            -e SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
             ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
 
           echo "Verifying deployment..."
