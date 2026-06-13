@@ -5,7 +5,8 @@ from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from jwt import PyJWKClient
-from rag.app.core.config import get_settings, AuthMode
+from rag.app.core.config import get_settings
+from rag.app.schemas.data import Environment
 
 logger = logging.getLogger(__name__)
 
@@ -20,27 +21,27 @@ async def verify_jwt_token(
 ) -> str:
     """
     Verify JWT token using Supabase JWKS and extract user_id.
-    In dev mode, skips authentication and returns a dummy user_id.
-    In prd mode, requires valid JWT token.
-    
+    When ENVIRONMENT=LOCAL, skips authentication and returns "local-user".
+    All other environments (STG, PRD, TEST) require a valid JWT token.
+
     Args:
-        credentials: HTTP Bearer token credentials (optional in dev mode)
-        
+        credentials: HTTP Bearer token credentials (not required in LOCAL mode)
+
     Returns:
-        user_id: The user ID extracted from the JWT token (or "dev-user" in dev mode)
-        
+        user_id: The user ID extracted from the JWT token (or "local-user" in LOCAL mode)
+
     Raises:
-        HTTPException: 401 if token is invalid or missing in prd mode
+        HTTPException: 401 if token is invalid or missing in non-LOCAL environments
     """
     settings = get_settings()
     
-    # Dev mode: skip authentication
-    if settings.auth_mode == AuthMode.DEV:
-        user_id = "dev-user"
-        logger.info(f"User logged in (DEV mode): user_id={user_id}")
+    # Local mode: skip authentication
+    if settings.environment == Environment.LOCAL:
+        user_id = "local-user"
+        logger.info(f"User logged in (LOCAL mode): user_id={user_id}")
         return user_id
-    
-    # PRD mode: require authentication
+
+    # All other environments require authentication
     if not credentials:
         logger.warning("No credentials provided in PRD mode")
         raise HTTPException(
@@ -86,9 +87,9 @@ async def verify_jwt_token(
                 detail={"code": "invalid_token", "message": "Token missing user_id"}
             )
         
-        logger.info(f"User logged in (PRD mode): user_id={user_id}")
+        logger.info(f"User logged in: user_id={user_id}")
         return user_id
-        
+
     except jwt.ExpiredSignatureError:
         # Allow expired tokens for admin demo email (saved JWT for demos)
         try:
@@ -102,7 +103,7 @@ async def verify_jwt_token(
             if decoded_token.get("email") == ADMIN_DEMO_EMAIL:
                 user_id = decoded_token.get("sub")
                 if user_id:
-                    logger.info(f"User logged in (PRD mode, admin demo): user_id={user_id}")
+                    logger.info(f"User logged in (admin demo): user_id={user_id}")
                     return user_id
         except jwt.InvalidTokenError:
             pass

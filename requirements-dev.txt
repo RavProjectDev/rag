@@ -1,8 +1,0 @@
-# Development and test dependencies only
-black==25.1.0
-isort==6.0.1
-pre_commit==4.2.0
-pytest==8.4.1
-pytest-asyncio==1.0.0
-ruff==0.12.2
-mongomock==4.3.0

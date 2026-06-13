@@ -3,8 +3,6 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 from rag.app.models.data import DocumentModel, SanityData, Metadata
-from rag.app.schemas.requests import TypeOfRequest
-
 
 class UploadRatingsDocument(BaseModel):
     id: str = Field(..., alias="_id")  # e.g. {"$oid": "687c65e061b769c8ff78779f"}

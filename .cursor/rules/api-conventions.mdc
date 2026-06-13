@@ -1,0 +1,46 @@
+---
+description: FastAPI router conventions for app/api/v1/
+globs: app/api/**/*.py
+alwaysApply: false
+---
+
+# API Router Conventions
+
+## Routers are thin
+
+Routers validate input and delegate to services. No business logic, no DB calls, no LLM calls inside handlers.
+
+## Auth
+
+Every endpoint that is not `/health` must depend on `verify_jwt_token`:
+
+```python
+user_id: str = Depends(verify_jwt_token)
+```
+
+## Request / response shapes
+
+- Request bodies → `app/schemas/requests.py`
+- Response bodies → `app/schemas/response.py`
+- Never define inline Pydantic models inside router files.
+
+## Error handling
+
+Catch typed exceptions from services and re-raise as `HTTPException`:
+
+```python
+except BaseAppException as e:
+    raise HTTPException(status_code=e.status_code, detail={"code": e.code, "error": e.message})
+except Exception as e:
+    raise HTTPException(status_code=500, detail={"code": "internal_server_error", "message": str(e)})
+```
+
+## Route naming
+
+- Paths: plural nouns, kebab-case (`/documents`, `/available-configs`)
+- Router prefixes are set in `app/main.py` — routers themselves use relative paths
+
+## Rate limiting
+
+Apply `rate_limit_middleware` and `user_rate_limit_middleware` only when `redis_conn` is not `None`.
+Decrement user rate limit on `asyncio.TimeoutError`, `NoDocumentFoundException`, and `BaseAppException`.

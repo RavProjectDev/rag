@@ -1,0 +1,52 @@
+---
+description: Pydantic schema and enum conventions for app/schemas/
+globs: app/schemas/*.py
+alwaysApply: false
+---
+
+# Schema Conventions
+
+## File responsibilities
+
+| File | Contains |
+|---|---|
+| `data.py` | Domain enums (`DataBaseConfiguration`, `LLMModel`, `EmbeddingConfiguration`, `ChunkingStrategy`, `Environment`) and core data models (`Chunk`, `VectorEmbedding`) |
+| `requests.py` | Inbound API request models (`ChatRequest`, `RetrieveDocumentsRequest`, `FormRequest`) |
+| `response.py` | Outbound API response models (`ChatResponse`, `ErrorResponse`, `HealthResponse`, etc.) |
+| `form.py` | Form-specific request/response shapes |
+
+## Enums
+
+- All enums whose values are serialised to/from JSON must use `str` as a mixin, not `auto()`.
+
+```python
+# ❌ breaks JSON serialisation
+class DataBaseConfiguration(Enum):
+    PINECONE = auto()
+
+# ✅
+class DataBaseConfiguration(Enum):
+    PINECONE = "pinecone"
+    MONGO = "mongo"
+```
+
+- `auto()` is acceptable only for purely internal enums never exposed in API contracts
+  (e.g. `DataSourceConfiguration`, `TypeOfFormat`).
+
+## No business logic in schemas
+
+Schemas are data contracts. Validators (`@field_validator`) may sanitise or reject values,
+but must not call services, make network calls, or access the database.
+
+## Validators
+
+Use Pydantic v2 `@field_validator` (class method style):
+
+```python
+@classmethod
+@field_validator("question")
+def question_validator(cls, v: str) -> str:
+    if not v.strip():
+        raise ValueError("question cannot be empty")
+    return v
+```
