@@ -6,7 +6,7 @@
 > After any change, an AI agent MUST run the smoke tests and evaluate
 > the output against the criteria in this file before marking the migration complete.
 >
-> Last updated: 2026-06-13
+> Last updated: 2026-06-13 (added REQ-006)
 
 ---
 
@@ -45,6 +45,7 @@ before proceeding. If the service never becomes healthy within 120 seconds, the 
 - Stating the topic is not in the database or transcripts
 - Stating there is no relevant context or insufficient information to answer
 - A polite explanation that the question is outside the scope of available teachings
+- "No document found" or equivalent phrasing indicating no matching source material exists
 
 **`main_text` must NOT**: present a substantive, factual answer about Rav Soloveitchik's teachings.
 
@@ -61,7 +62,7 @@ before proceeding. If the service never becomes healthy within 120 seconds, the 
 **`main_text`**: must be a substantive response. It must:
 - Be at least a few sentences long
 - Clearly relate to Jewish thought, Rav Soloveitchik's teachings, marriage, or covenantal relationships
-- NOT contain phrases like "no information", "not in the database", "insufficient context", or equivalent refusals
+- NOT contain phrases like "no information", "not in the database", "insufficient context", "no document found", or equivalent refusals
 
 **`sources`**: must contain at least one cited source.
 
@@ -82,6 +83,19 @@ Neither test response body should contain:
 - HTTP 500 status
 - `"internal_server_error"` in the response body
 - Python tracebacks or raw exception messages
+
+---
+
+## REQ-006 — `main_text` always ends with `!`
+
+**Trigger**: `POST /api/v1/chat/` with any valid question (including the Test 2 question from REQ-003).
+
+**HTTP status**: must be 200.
+
+**`main_text`**: the final character of the string must be `!`.
+
+**Pass**: `main_text[-1] == "!"`.
+**Fail**: `main_text` does not end with `!`.
 
 ---
 

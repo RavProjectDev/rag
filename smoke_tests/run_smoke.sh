@@ -31,10 +31,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.smoke.yml"
 BASE_URL="http://localhost:8080"
 CHAT_URL="$BASE_URL/api/v1/chat/"
-HEALTH_URL="$BASE_URL/api/v1/health"
+HEALTH_URL="$BASE_URL/api/v1/health/"
 
 VALID_QUESTION="What does the Rav say about the purpose of marriage in a Jewish life?"
-GIBBERISH="$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 50 || true)"
+GIBBERISH="2asoidDaspifcnaIPJFNGsfashfdsJHFAdjfshudsfhuoawsGSHIBGDHISA"
 
 # ── colour helpers ────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'
