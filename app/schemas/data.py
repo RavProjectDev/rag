@@ -104,6 +104,13 @@ class DataBaseConfiguration(Enum):
     MONGO = "mongo"
 
 
+class Environment(Enum):
+    PRD = "PRD"
+    STG = "STG"
+    TEST = "TEST"
+    LOCAL = "LOCAL"
+
+
 class ChunkingStrategy(Enum):
     """Available chunking strategies for document processing."""
     FIXED_SIZE = "fixed_size"  # Fixed token-based chunking

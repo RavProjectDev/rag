@@ -6,14 +6,8 @@ from rag.app.models.data import SanityData
 from rag.app.services.prompts import PromptType
 
 
-class TypeOfRequest(str, Enum):
-    STREAM = "STREAM"
-    FULL = "FULL"
-
-
 class ChatRequest(BaseModel):
     question: str
-    type_of_request: TypeOfRequest
     name_spaces: list[str] | None = None
     prompt_type: PromptType = Field(
         default=PromptType.STRUCTURED_JSON,

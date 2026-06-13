@@ -1,0 +1,37 @@
+---
+description: Enforce specs/current/ sync when implementing a future state
+globs: specs/future/*.md
+alwaysApply: false
+---
+
+# Spec Sync — Required
+
+When you implement or complete work described in a `specs/future/` file, you MUST
+update the relevant `specs/current/` documents in the same session before finishing.
+
+## Required actions (do not skip any)
+
+1. **Identify** which `specs/current/` files are affected by the change:
+   - `architecture.md` — if the stack, active config, request lifecycle, or module responsibilities change
+   - `api-surface.md` — if any route, request field, response field, or auth behaviour changes
+   - `data-models.md` — if any enum, schema, or response shape changes
+   - `configuration.md` — if any constant, Settings field, or default value changes
+   - `infrastructure.md` — if any environment, CI workflow, external service, or script changes
+
+2. **Update** each affected file to describe the system as it now is, not as it was.
+
+3. **Add a new `REQ-NNN` entry** to `specs/current/app-requirements.md` if the change
+   introduces or modifies observable API behaviour. Follow the existing format:
+   trigger → expected HTTP status → expected body criteria → pass/fail definition.
+
+4. **Run the smoke tests** and evaluate the output against every requirement in
+   `specs/current/app-requirements.md`:
+   ```bash
+   cd smoke_tests && ./run_smoke.sh
+   ```
+   Produce a verdict (PASS / FAIL / SKIP) for each REQ-NNN. Do not finish until all are PASS or SKIP.
+
+5. **Delete or mark superseded** the `specs/future/<name>.md` file once `specs/current/` is
+   fully updated and all requirements pass.
+
+## You are not done until all five steps are complete.

@@ -26,7 +26,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from rag.app.core.config import SharedSettings, Environment
+from rag.app.core.config import SharedSettings
+from rag.app.schemas.data import Environment
 from rag.app.db.connections import MetricsConnection, ExceptionsLogger
 from rag.app.db.mongodb_connection import (
     MongoEmbeddingStore,

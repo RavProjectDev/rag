@@ -1,0 +1,57 @@
+---
+description: Rules for app/core/constants/ — the non-secret defaults layer
+globs: app/core/constants/*.py
+alwaysApply: false
+---
+
+# Constants Pattern
+
+## What belongs here
+
+Non-secret, non-credential default values that can be overridden via environment variables.
+One file per service domain.
+
+| File | Domain |
+|---|---|
+| `app.py` | Runtime switches (`DATABASE_CONFIGURATION`, `ENVIRONMENT`, `DEV_OUTPUTS`) |
+| `llm.py` | Model selection and timeouts |
+| `mongo.py` | Collection names, index names, retry/timeout settings |
+| `pinecone.py` | Pinecone index name, namespace, host, environment |
+| `supabase.py` | Supabase project URL |
+| `upstash.py` | Redis URL and rate-limit defaults |
+| `vertex.py` | GCP project ID and region |
+
+## What does NOT belong here
+
+- API keys, tokens, passwords, or any secret credential
+- URIs that contain embedded credentials
+- Hardcoded production values that differ per deployment without an override path
+
+## Every constant must have a Settings field
+
+Every constant exported from this package must be mirrored as a field in `SharedSettings`
+or `Settings` in `app/core/config.py`, so it can be overridden via environment variable.
+
+```python
+# ✅ constants/mongo.py
+MONGODB_DB_NAME = "rav_dev"
+
+# ✅ core/config.py
+mongodb_db_name: str = C.MONGODB_DB_NAME
+```
+
+## Backend-conditional imports
+
+Constants specific to a vector-store backend are conditionally imported in `__init__.py`.
+Keep the conditional block in `__init__.py`, not scattered across files:
+
+```python
+if DATABASE_CONFIGURATION == DataBaseConfiguration.PINECONE:
+    from rag.app.core.constants.pinecone import (  # noqa: F401
+        PINECONE_INDEX_NAME, PINECONE_NAMESPACE, ...
+    )
+```
+
+## Re-export everything from `__init__.py`
+
+All consumer code imports from `rag.app.core.constants` (the package), never from sub-modules directly.
