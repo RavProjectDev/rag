@@ -72,7 +72,7 @@ docker compose -f "$COMPOSE_FILE" up -d --build
 info "Waiting for service to become healthy..."
 MAX_WAIT=120
 ELAPSED=0
-until curl -sf "$HEALTH_URL" > /dev/null 2>&1; do
+until curl -sf --max-time 5 "$HEALTH_URL" > /dev/null 2>&1; do
   if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
     error "Service did not become healthy after ${MAX_WAIT}s. Dumping logs:"
     docker compose -f "$COMPOSE_FILE" logs --tail=50
