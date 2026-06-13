@@ -53,6 +53,31 @@ jobs:
             ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
           platforms: linux/amd64
 
+      - name: Sync secrets to GCP Secret Manager
+        run: |
+          sync_secret() {
+            local name=$1
+            local value=$2
+            if [ -z "$value" ]; then
+              echo "Skipping $name (no value provided)"
+              return
+            fi
+            if gcloud secrets describe "$name" --quiet 2>/dev/null; then
+              echo -n "$value" | gcloud secrets versions add "$name" --data-file=-
+              echo "Updated secret: $name"
+            else
+              echo -n "$value" | gcloud secrets create "$name" --data-file=- --replication-policy=automatic
+              echo "Created secret: $name"
+            fi
+          }
+          sync_secret "OPENAI_API_KEY"           "${{ secrets.OPENAI_API_KEY }}"
+          sync_secret "MONGODB_URI"              "${{ secrets.MONGODB_URI }}"
+          sync_secret "PINECONE_API_KEY"         "${{ secrets.PINECONE_API_KEY }}"
+          sync_secret "GEMINI_API_KEY"           "${{ secrets.GEMINI_API_KEY }}"
+          sync_secret "UPSTASH_REDIS_REST_TOKEN" "${{ secrets.UPSTASH_REDIS_REST_TOKEN }}"
+          sync_secret "SUPABASE_SERVICE_ROLE_KEY" "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          sync_secret "SUPABASE_ANON_KEY"        "${{ secrets.SUPABASE_ANON_KEY }}"
+
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
