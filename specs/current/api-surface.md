@@ -38,9 +38,11 @@ Full RAG pipeline: embed → retrieve → prompt → LLM → response with cited
 
 **Response** (`ChatResponse`):
 
+`main_text` always ends with `!` (appended unconditionally by `postprocess_main_text` in `app/services/llm.py`).
+
 ```json
 {
-  "main_text": "string",
+  "main_text": "string (always ends with !)",
   "sources": [
     {
       "slug": "string",
@@ -158,6 +160,61 @@ Not part of the public API surface.
 ### Docs — `/`
 
 Mounts the FastAPI auto-generated OpenAPI docs (`/docs`, `/redoc`, `/openapi.json`).
+
+---
+
+## Webhook API (`rag.app.webhook`)
+
+The webhook system runs as a **separate FastAPI process**, not mounted into the main RAG API.
+
+**Start command:**
+
+```
+uvicorn rag.app.webhook:app
+```
+
+It shares infrastructure with the RAG API (`SharedSettings`, `create_lifespan`, `register_middleware`) but does **not** require OpenAI, Supabase, Redis, or rate-limit environment variables — only those in `SharedSettings` plus `webhook_secret`.
+
+### Auth
+
+**Currently none.** The webhook handlers do not require a JWT and the `webhook_secret` field in `WebhookSettings` is defined but not yet wired into the request handlers (no HMAC signature verification is performed).
+
+### Routers
+
+#### Webhook — `/api/v1/webhook`
+
+All three routes accept a `SanityData` JSON body.
+
+**`SanityData` payload:**
+
+| Field | Type | Alias | Description |
+|---|---|---|---|
+| `id` | `str` | — | Sanity document `_id` |
+| `updated_at` | `str \| None` | `_updatedAt` | ISO timestamp of last CMS update |
+| `slug` | `str` | — | URL slug for the transcript |
+| `title` | `str` | — | Transcript title |
+| `transcriptURL` | `HttpUrl` | — | URL to the raw transcript file |
+| `hash` | `str` | — | Content hash for change detection |
+
+#### `POST /api/v1/webhook/create`
+
+Triggered when a new document is created in the CMS.
+Handler body is currently a stub (`pass`) — no sync logic implemented yet.
+
+#### `PATCH /api/v1/webhook/update`
+
+Triggered when an existing document is updated in the CMS.
+Handler body is currently a stub (`pass`) — no sync logic implemented yet.
+
+#### `DELETE /api/v1/webhook/delete`
+
+Triggered when a document is deleted from the CMS.
+Handler body is currently a stub (`pass`) — no sync logic implemented yet.
+
+#### Health — `/api/v1/health`
+
+Same health router as the RAG API. Returns `HealthResponse { status, version, environment }`.
+No auth required.
 
 ---
 

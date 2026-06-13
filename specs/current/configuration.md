@@ -1,7 +1,7 @@
 # Configuration — Current State
 
 > Last updated: 2026-06-13
-> Source: `app/core/config.py`, `app/core/constants/`
+> Source: `app/core/config.py`, `app/core/webhook_config.py`, `app/core/constants/`
 
 ---
 
@@ -19,14 +19,15 @@ To change non-secret config, edit the relevant constants file — never `.env`.
 
 ---
 
-## Settings hierarchy (`app/core/config.py`)
+## Settings hierarchy (`app/core/config.py`, `app/core/webhook_config.py`)
 
 ```
-SharedSettings          ← secrets + defaults shared by all app instances
-    └── Settings        ← full RAG API settings (extends SharedSettings)
+SharedSettings              ← secrets + defaults shared by all app instances
+    ├── Settings            ← full RAG API settings (extends SharedSettings)
+    └── WebhookSettings     ← Sync Webhook API settings (extends SharedSettings)
 ```
 
-`get_settings()` is `@lru_cache()`-wrapped — settings are loaded once per process.
+`get_settings()` and `get_webhook_settings()` are both `@lru_cache()`-wrapped — settings are loaded once per process.
 
 ---
 
@@ -92,6 +93,22 @@ SharedSettings          ← secrets + defaults shared by all app instances
 | `rate_limit_window_seconds` | `10,000` s | Global rate limit window |
 | `user_rate_limit_max_requests_per_month` | `100` | Per-user monthly cap |
 | `dev_outputs` | `True` | Write full prompts to `dev_outputs/` when `True` |
+
+---
+
+## `WebhookSettings` fields (Webhook API only — `app/core/webhook_config.py`)
+
+`WebhookSettings` extends `SharedSettings`. It does **not** require OpenAI, Supabase, Redis, or rate-limit vars.
+
+### Secrets (must be in `.env`)
+
+None beyond those inherited from `SharedSettings`.
+
+### Non-secret defaults
+
+| Field | Default | Description |
+|---|---|---|
+| `webhook_secret` | `None` | HMAC secret for verifying Sanity webhook signatures. Defined but **not yet wired** into request handlers — signature verification is not active. |
 
 ---
 

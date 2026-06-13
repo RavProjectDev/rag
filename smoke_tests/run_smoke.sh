@@ -34,7 +34,7 @@ CHAT_URL="$BASE_URL/api/v1/chat/"
 HEALTH_URL="$BASE_URL/api/v1/health"
 
 VALID_QUESTION="What does the Rav say about the purpose of marriage in a Jewish life?"
-GIBBERISH="$(cat /dev/urandom | LC_ALL=C tr -dc 'a-zA-Z0-9' | head -c 50)"
+GIBBERISH="$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 50 || true)"
 
 # ── colour helpers ────────────────────────────────────────────────────────────
 GREEN='\033[0;32m'
