@@ -1,0 +1,38 @@
+---
+description: Execute a future spec end-to-end when the user says "do it"
+globs: specs/future/*.md
+alwaysApply: false
+---
+
+# Future Spec — Execute
+
+When the user points you at a `specs/future/<name>.md` file and asks you to implement it,
+follow these steps **in order**. Do not skip any step.
+
+## Steps
+
+1. **Read the future spec fully** — understand motivation, desired end state, affected components,
+   and success criteria before touching any code.
+
+2. **Create the migration doc** — copy `specs/migrations/TEMPLATE.md` to
+   `specs/migrations/YYYYMMDD-<slug>.md` (use today's date and a short kebab-case slug from the
+   future spec title). Fill in the **From**, **To**, and **Steps** sections before writing any code.
+
+3. **Implement the changes** — work through the Steps checklist in the migration doc, checking off
+   each item as you complete it.
+
+4. **Update `specs/current/`** — follow the full checklist in the `spec-sync` rule:
+   update every affected current-spec file and add any new `REQ-NNN` entries.
+
+5. **Run smoke tests and fill in verdicts**:
+   ```bash
+   cd smoke_tests && ./run_smoke.sh
+   ```
+   Record PASS / FAIL / SKIP for every `REQ-NNN` in the migration doc's verdict table.
+   Do not proceed if any requirement is FAIL.
+
+6. **Mark the migration complete** — set its status to `complete` and fill in the `Completed` date.
+
+7. **Mark the future spec superseded** — set its status to `superseded` in the frontmatter.
+
+## You are not done until all seven steps are complete.
