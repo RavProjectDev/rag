@@ -67,7 +67,7 @@ class EmbeddingServiceConfig:
 @lru_cache(maxsize=1)
 def _get_embedding_service_config() -> EmbeddingServiceConfig:
     """Get cached embedding service configuration."""
-    settings = get_settings()
+    settings = get_shared_settings()
     return EmbeddingServiceConfig(
         project_id=settings.google_cloud_project_id, region=settings.vertex_region
     )
@@ -75,7 +75,7 @@ def _get_embedding_service_config() -> EmbeddingServiceConfig:
 
 def _initialize_vertexai() -> None:
     """Initialize Vertex AI with project configuration."""
-    settings = get_settings()
+    settings = get_shared_settings()
 
     # Skip external initialization in test environments to allow unit tests to run without GCP
     if getattr(settings, "environment", None) == Environment.TEST:

@@ -85,5 +85,10 @@ class Settings(SharedSettings):
 
 
 @lru_cache()
+def get_shared_settings() -> SharedSettings:
+    return SharedSettings()
+
+
+@lru_cache()
 def get_settings() -> Settings:
     return Settings()
