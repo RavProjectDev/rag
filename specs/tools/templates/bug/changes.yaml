@@ -1,0 +1,25 @@
+type: bug
+
+canonicalChanges:
+  architecture: false
+  domainModel: false
+  apiContract: false
+  businessRules: false
+
+affectedAreas:
+  auth: false
+  api: false
+  embedding: false
+  vectorStore: false
+  llm: false
+  ingestion: false
+  rateLimiting: false
+  queryPersistence: false
+  metrics: false
+
+changeScope:
+  files: []
+  modules: []
+  services: []
+
+riskLevel: medium

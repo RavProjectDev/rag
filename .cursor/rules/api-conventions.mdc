@@ -18,6 +18,8 @@ Every endpoint that is not `/health` must depend on `verify_jwt_token`:
 user_id: str = Depends(verify_jwt_token)
 ```
 
+**Exception — webhook endpoints (`app/api/v1/webhook.py`):** these are exempt from JWT auth. They run in the separate Webhook API process and are secured via HMAC signature verification using `webhook_secret` from `WebhookSettings`. Do not add `verify_jwt_token` to webhook handlers.
+
 ## Request / response shapes
 
 - Request bodies → `app/schemas/requests.py`

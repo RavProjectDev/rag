@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# spec — scaffold feature and bug specs
+# Usage:
+#   spec create feature <slug>
+#   spec create bug <slug>
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SPECS_DIR="$REPO_ROOT/specs"
+TEMPLATES_DIR="$SPECS_DIR/tools/templates"
+INDEX_FILE="$SPECS_DIR/index.yaml"
+
+usage() {
+  echo "Usage: spec create feature <slug>"
+  echo "       spec create bug <slug>"
+  exit 1
+}
+
+# Return next zero-padded 4-digit ID for a given type (feature|bug)
+next_id() {
+  local type="$1"
+  local key="${type}s"
+  local count
+  count=$(python3 - <<EOF
+import yaml, sys
+with open("$INDEX_FILE") as f:
+    data = yaml.safe_load(f) or {}
+items = data.get("$key", []) or []
+print(len(items) + 1)
+EOF
+)
+  printf "%04d" "$count"
+}
+
+register_in_index() {
+  local type="$1"   # feature | bug
+  local id="$2"
+  local slug="$3"
+  local key="${type}s"
+
+  python3 - <<EOF
+import yaml
+
+with open("$INDEX_FILE") as f:
+    data = yaml.safe_load(f) or {}
+
+key = "$key"
+if key not in data or data[key] is None:
+    data[key] = []
+
+data[key].append({"id": int("$id"), "slug": "$slug"})
+
+with open("$INDEX_FILE", "w") as f:
+    yaml.dump(data, f, default_flow_style=False, sort_keys=False)
+
+print("Registered $type '$slug' (id=$id) in index.yaml")
+EOF
+}
+
+scaffold() {
+  local type="$1"   # feature | bug
+  local slug="$2"
+
+  local id
+  id=$(next_id "$type")
+
+  local dir_name="${id}_${slug}"
+  local target_dir="$SPECS_DIR/${type}s/$dir_name"
+  local template_dir="$TEMPLATES_DIR/$type"
+
+  if [[ -d "$target_dir" ]]; then
+    echo "Error: $target_dir already exists." >&2
+    exit 1
+  fi
+
+  mkdir -p "$target_dir"
+  cp "$template_dir/what.md"      "$target_dir/what.md"
+  cp "$template_dir/how.md"       "$target_dir/how.md"
+  cp "$template_dir/test.md"      "$target_dir/test.md"
+  cp "$template_dir/changes.yaml" "$target_dir/changes.yaml"
+
+  # Replace placeholder title in .md files
+  local title type_cap
+  title=$(echo "$slug" | tr '-' ' ' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2); print}')
+  type_cap=$(echo "$type" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+  python3 - "$target_dir" "$type_cap" "$title" <<'PYEOF'
+import sys, pathlib
+target, type_cap, title = sys.argv[1], sys.argv[2], sys.argv[3]
+placeholder = f"[{type_cap} Title]"
+for name in ("what.md", "how.md", "test.md"):
+    p = pathlib.Path(target) / name
+    p.write_text(p.read_text().replace(placeholder, title))
+PYEOF
+
+  register_in_index "$type" "$id" "$slug"
+
+  echo ""
+  echo "Created $type spec: specs/${type}s/$dir_name/"
+  echo "  what.md      — define user story and acceptance criteria"
+  echo "  how.md       — define implementation approach"
+  echo "  test.md      — define verification cases"
+  echo "  changes.yaml — declare scope and canonical change flags"
+}
+
+# ── Argument parsing ──────────────────────────────────────────────────────────
+
+if [[ $# -lt 3 ]]; then usage; fi
+
+command="$1"
+type="$2"
+slug="$3"
+
+if [[ "$command" != "create" ]]; then usage; fi
+if [[ "$type" != "feature" && "$type" != "bug" ]]; then usage; fi
+if [[ -z "$slug" ]]; then usage; fi
+
+# Validate slug: lowercase alphanumeric and hyphens only
+if ! echo "$slug" | grep -qE '^[a-z0-9][a-z0-9-]*[a-z0-9]$'; then
+  echo "Error: slug must be lowercase alphanumeric with hyphens (e.g. auth-refresh)" >&2
+  exit 1
+fi
+
+scaffold "$type" "$slug"

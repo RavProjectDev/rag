@@ -1,0 +1,55 @@
+---
+description: Spec-driven execution rules (R1–R5) — governs all feature and bug implementation
+globs: specs/**/*.md, specs/**/*.yaml
+alwaysApply: false
+---
+
+# Spec-Driven Execution Rules
+
+## R1 — Canonical Truth
+
+`specs/current/` is the single source of truth. Never override it implicitly.
+
+## R2 — Canonical Mutation Gate
+
+Read `changes.yaml` before touching any file in `specs/current/`.
+
+- All flags `false` → `specs/current/` **must not change**
+- Any flag `true` → change is allowed only after explicit validation; sync `specs/current/` when done
+
+```yaml
+canonicalChanges:
+  architecture: false   # specs/current/architecture.md
+  domainModel: false    # specs/current/data-models.md
+  apiContract: false    # specs/current/api-surface.md
+  businessRules: false  # specs/current/app-requirements.md
+```
+
+## R3 — Spec Completeness
+
+A spec is **invalid** unless it contains all four files:
+
+```
+what.md   how.md   test.md   changes.yaml
+```
+
+Do not implement an incomplete spec — ask for the missing files first.
+
+## R4 — Execution Flow
+
+Follow this order on every implementation:
+
+1. Read `what.md`, `how.md`, `test.md`, `changes.yaml`
+2. Validate completeness (R3)
+3. Analyse impact against `specs/current/`
+4. Check `canonicalChanges` (R2 gate)
+5. Implement the minimal change described in `how.md`
+6. Validate every case in `test.md`
+7. Run smoke tests — verifies the system as a whole; **do not skip**
+8. If R2 allows: sync `specs/current/`
+
+## R5 — No Scope Expansion
+
+Only touch files listed in `changeScope.files`, modules in `changeScope.modules`,
+and services in `changeScope.services`. Any change outside these boundaries requires
+an explicit `changes.yaml` update first.
