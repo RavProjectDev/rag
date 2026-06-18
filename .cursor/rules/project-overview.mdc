@@ -18,6 +18,7 @@ into a vector store, and retrieved at query time to ground LLM responses with ci
 | Layer | Technology |
 |---|---|
 | API framework | FastAPI 1.0.0 (`rag.app.main`) |
+| Webhook API | FastAPI — separate process (`rag.app.webhook`), CMS sync receiver |
 | Embeddings | Google Gemini (`gemini-embedding-001`) |
 | LLM | Gemini Flash / GPT-5.2 (switchable via `LLM_CONFIGURATION`) |
 | Vector store | Pinecone **or** MongoDB Atlas Vector (switchable via `DATABASE_CONFIGURATION`) |
@@ -36,11 +37,18 @@ into a vector store, and retrieved at query time to ground LLM responses with ci
 | `app/schemas/` | Pydantic contracts (requests, responses, enums) |
 | `app/models/` | Internal domain models (not exposed directly) |
 | `app/core/config.py` | `Settings` / `SharedSettings` — Pydantic settings |
+| `app/core/webhook_config.py` | `WebhookSettings` — extends `SharedSettings`; no auth/Redis/Supabase required |
 | `app/core/constants/` | Non-secret defaults (env-overridable) |
+| `app/webhook.py` | Webhook API entrypoint — separate FastAPI process for CMS sync |
 | `app/exceptions/` | Typed exception hierarchy |
 | `scripts/` | Ingestion and sync scripts |
 | `smoke_tests/` | End-to-end smoke test runner + spec |
-| `specs/` | Human-readable system specs (current state, future states, migrations) |
+| `specs/current/` | Canonical system state — architecture, API, data models, config |
+| `specs/features/` | Feature specs (`what.md`, `how.md`, `test.md`, `changes.yaml`) |
+| `specs/bugs/` | Bug specs (same structure as features) |
+| `specs/index.yaml` | Registry of all features and bugs |
+| `specs/tools/spec` | CLI to scaffold new specs (`spec create feature <slug>`) |
+| `.cursor/skills/` | Cursor agent skills (registered, slash-command accessible) |
 
 ## Critical invariants
 
@@ -48,4 +56,6 @@ into a vector store, and retrieved at query time to ground LLM responses with ci
 - **Constants are defaults, not config** — every constant must be overridable via its `Settings` field.
 - **No business logic in routers** — routers validate input and delegate to `app/services/`.
 - **Typed exceptions only** — raise from `app/exceptions/`, never bare `Exception` or `HTTPException` directly in services.
-- Start the server from the repo parent directory: `PYTHONPATH=.. uvicorn rag.app.main:app --port 8000`
+- Start the RAG API: `PYTHONPATH=.. uvicorn rag.app.main:app --port 8000`
+- Start the Webhook API (separate process): `PYTHONPATH=.. uvicorn rag.app.webhook:app --port 8001`
+- **Webhook endpoints are not JWT-protected** — secured via HMAC (`webhook_secret`). Never add `verify_jwt_token` to webhook handlers.
