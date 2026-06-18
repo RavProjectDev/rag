@@ -165,6 +165,7 @@ The context above contains numbered sources [1], [2], [3], etc. Each source is a
    - Provide a comprehensive response (2-3 sentences) that directly answers the user's question
    - Synthesize and explain the relevant ideas from the numbered sources
    - Write naturally and clearly for the user
+   - NEVER include citation numbers or brackets like [1], [3], [4, 5, 6] anywhere in main_text — no footnotes, no inline references of any kind
 4. SOURCE NUMBERS:
    - List ONLY the numbers (as integers) of the sources you referenced in your main_text
    - Be selective - only include sources that are truly relevant to answering the question
@@ -173,7 +174,6 @@ The context above contains numbered sources [1], [2], [3], etc. Each source is a
 5. STRICT REQUIREMENTS:
    - Use ONLY information from the provided numbered sources
    - Do NOT invent or add information not present in the context
-   - Reference source numbers EXACTLY as they appear in brackets
    - If no sources are relevant, return: {{"main_text": "The provided context does not contain sufficient information to answer this question.", "source_numbers": []}}
 6. Ensure all strings use double quotes and the JSON is syntactically valid.
 
@@ -185,6 +185,7 @@ The context above contains numbered sources [1], [2], [3], etc. Each source is a
 
 IMPORTANT NOTES:
 - Your main_text should be a flowing, natural response—NOT a list of quotes
+- Never embed source numbers like [4] or [4, 5, 6] inside main_text — that is what source_numbers is for
 - The source_numbers array tells us which sources support your response
 - We will return the exact original source texts to the user based on your source_numbers
 - Focus on answering the question clearly and comprehensively""",

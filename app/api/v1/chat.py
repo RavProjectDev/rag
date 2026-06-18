@@ -1,11 +1,12 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 import httpx
 
 from fastapi import APIRouter, HTTPException, Depends, Request
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from starlette import status
 
 from rag.app.core.config import get_settings
@@ -33,7 +34,6 @@ from rag.app.schemas.data import EmbeddingConfiguration, LLMModel
 from rag.app.schemas.requests import (
     ChatRequest,
     RetrieveDocumentsRequest,
-    TypeOfRequest,
 )
 from rag.app.schemas.response import (
     ChatResponse,
@@ -43,7 +43,6 @@ from rag.app.schemas.response import (
 )
 from rag.app.services.embedding import generate_embedding
 from rag.app.services.llm import (
-    stream_llm_response,
     generate_prompt,
     get_llm_response,
     get_chat_response_json_schema,
@@ -196,18 +195,10 @@ async def retrieve_documents_handler(
 @router.post(
     "/",
     response_model=ChatResponse,
-    summary="Create chat completion (streaming or full)",
-    description=(
-        "Returns a full completion or a Server-Sent Events stream based on type_of_request.\n"
-        "SSE emits 'transcript_data' first, then incremental 'data' tokens, and terminates with [DONE]."
-    ),
+    summary="Create chat completion",
+    description="Returns a full chat completion with sources from the RAG pipeline.",
     responses={
-        200: {
-            "description": "Returns ChatResponse (JSON) or StreamingResponse (SSE)",
-            "content": {
-                "text/event-stream": {"schema": {"type": "string", "format": "binary"}}
-            },
-        },
+        200: {"model": ChatResponse},
         400: {"model": ErrorResponse, "description": "Bad request"},
         408: {"model": ErrorResponse, "description": "Timeout"},
         422: {"model": ErrorResponse, "description": "Validation error"},
@@ -225,9 +216,9 @@ async def handler(
     ),
     llm_configuration: LLMModel = Depends(get_llm_configuration),
     redis_conn: RedisConnection | None = Depends(get_redis_conn),
-) -> ChatResponse | StreamingResponse:
+) -> ChatResponse:
     """
-    Asynchronous chat completion endpoint for handling streaming and non-streaming chat requests.
+    Chat completion endpoint.
 
     Args:
         chat_request: The validated chat request model.
@@ -237,7 +228,7 @@ async def handler(
         llm_configuration: LLM model configuration.
 
     Returns:
-        ChatResponse | StreamingResponse: Non-streaming or streaming response.
+        ChatResponse with main_text and cited sources.
 
     Raises:
         HTTPException: For validation, database, embedding, LLM, or unexpected errors.
@@ -284,9 +275,8 @@ async def handler(
             ),
             timeout=settings.external_api_timeout,
         )
-        if chat_request.type_of_request == TypeOfRequest.STREAM:
-            # Use schema enforcement for STRUCTURED_JSON prompts
-            # Check if any documents have timestamps to determine if timestamp should be required
+        # Generate full response
+        async def full_response():
             has_timestamps = any(
                 item.metadata.time_start is not None or item.metadata.time_end is not None
                 for item in transcript_data
@@ -297,234 +287,159 @@ async def handler(
                 else None
             )
 
-            async def event_generator():
-                """Asynchronous generator for Server-Sent Events (SSE)."""
-                yield f"data: {json.dumps({'transcript_data': [item.to_dict() for item in transcript_data]})}\n\n"
-
-                async for chunk in stream_llm_response(
-                    metrics_connection=metrics_conn,
-                    prompt=prompt.value,
-                    model=llm_configuration.value,
-                    response_format=response_format,
-                ):
-                    yield f"data: {json.dumps({'data': chunk})}\n\n"
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(event_generator(), media_type="text/event-stream")
-        else:
-            # Generate full response
-            async def full_response():
-                import logging
-                logger = logging.getLogger(__name__)
-                
-                # Use schema enforcement for STRUCTURED_JSON prompts
-                # Check if any documents have timestamps to determine if timestamp should be required
-                has_timestamps = any(
-                    item.metadata.time_start is not None or item.metadata.time_end is not None
-                    for item in transcript_data
-                )
-                response_format = (
-                    get_chat_response_json_schema(require_timestamp=has_timestamps)
-                    if prompt.id == PromptType.STRUCTURED_JSON.value
-                    else None
-                )
-                
-                llm_response = await get_llm_response(
-                    metrics_connection=metrics_conn,
-                    prompt=prompt.value,
-                    model=llm_configuration,
-                    response_format=response_format,
-                )
-                # If we used the structured JSON prompt, validate JSON and return it
-                if prompt.id == PromptType.STRUCTURED_JSON.value:
-                    try:
-                        parsed = json.loads(llm_response)
-                        main_text = parsed.get("main_text", "")
-                        source_numbers = parsed.get("source_numbers", [])
-                        
-                        logger.info(f"[FULL RESPONSE] LLM returned {len(source_numbers)} source numbers: {source_numbers}")
-                        
-                        # Build source lookup by number
-                        source_by_number = {src["number"]: src for src in source_list}
-                        
-                        # Group sources by text_id (parent document)
-                        sources_by_doc = {}
-                        for num in source_numbers:
-                            source = source_by_number.get(num)
-                            if source is None:
-                                logger.warning(
-                                    f"[FULL RESPONSE] LLM referenced source number {num} but it doesn't exist. "
-                                    f"Available numbers: {list(source_by_number.keys())[:10]}"
-                                )
-                                continue
-                            
-                            text_id = source["text_id"]
-                            if text_id not in sources_by_doc:
-                                sources_by_doc[text_id] = []
-                            sources_by_doc[text_id].append(source)
-                        
-                        # Build sources with full context and bolded used quotes
-                        sources = []
-                        slug_counts = {}  # Track quotes per slug
-                        
-                        for text_id, used_sources in sources_by_doc.items():
-                            # Find the original document from retrieved_docs
-                            original_doc = next((d for d in retrieved_docs if d.id == text_id), None)
-                            if not original_doc:
-                                logger.warning(f"[FULL RESPONSE] Could not find original document for text_id={text_id}")
-                                continue
-                            
-                            # Get all text segments from the document
-                            all_segments = original_doc.text if isinstance(original_doc.text, list) else [(original_doc.text, None)]
-                            
-                            # Build set of used text for quick lookup
-                            used_texts = {s["text"] for s in used_sources}
-                            
-                            # Reconstruct full text with bolded used segments
-                            reconstructed_text_parts = []
-                            min_time = None
-                            max_time = None
-                            
-                            for segment in all_segments:
-                                if isinstance(segment, (list, tuple)) and len(segment) >= 1:
-                                    text_content = segment[0]
-                                    
-                                    # Track timestamp range
-                                    if len(segment) >= 2 and isinstance(segment[1], (list, tuple)) and len(segment[1]) >= 2:
-                                        time_start = segment[1][0]
-                                        time_end = segment[1][1]
-                                        if time_start:
-                                            if min_time is None or time_start < min_time:
-                                                min_time = time_start
-                                        if time_end:
-                                            if max_time is None or time_end > max_time:
-                                                max_time = time_end
-                                    
-                                    # Check if this segment was used and bolden it
-                                    if text_content in used_texts:
-                                        reconstructed_text_parts.append(f"**{text_content}**")
-                                    else:
-                                        reconstructed_text_parts.append(text_content)
-                                else:
-                                    reconstructed_text_parts.append(str(segment))
-                            
-                            # Join all parts
-                            full_text_with_highlights = " ".join(reconstructed_text_parts)
-                            
-                            # Create timestamp range
-                            timestamp_range = None
-                            if min_time and max_time:
-                                timestamp_range = f"{min_time}-{max_time}"
-                            elif min_time:
-                                timestamp_range = min_time
-                            elif max_time:
-                                timestamp_range = max_time
-                            
-                            # Create list of used quotes
-                            used_quotes = [
-                                {
-                                    "number": s["number"],
-                                    "text": s["text"],
-                                    "timestamp": s["timestamp"]
-                                }
-                                for s in used_sources
-                            ]
-                            
-                            # Create source entry with full context
-                            source_entry = {
-                                "slug": original_doc.sanity_data.slug,
-                                "text_id": text_id,
-                                "full_text": full_text_with_highlights,
-                                "used_quotes": used_quotes,
-                                "timestamp_range": timestamp_range,
-                            }
-                            sources.append(source_entry)
-                            
-                            # Count quotes per slug
-                            slug = original_doc.sanity_data.slug
-                            slug_counts[slug] = slug_counts.get(slug, 0) + len(used_sources)
-                            
-                            # Log source details
-                            logger.info(
-                                f"[FULL RESPONSE] Document text_id={text_id}, slug={slug}, "
-                                f"used_quotes={len(used_sources)}, full_text_length={len(full_text_with_highlights)} chars"
-                            )
-                        
-                        # Log distribution of quotes across sources
-                        unique_slugs = len(slug_counts)
-                        logger.info(
-                            f"[FULL RESPONSE] Returning {len(sources)} documents with {sum(slug_counts.values())} total quotes from {unique_slugs} unique transcript(s)"
-                        )
-                        for slug, count in slug_counts.items():
-                            logger.info(f"[FULL RESPONSE] Transcript '{slug}': {count} quote(s)")
-                        
-                        return ChatResponse(
-                            main_text=main_text,
-                            sources=sources,
-                        )
-                    except json.JSONDecodeError as e:
-                        logger.error(f"[FULL RESPONSE ERROR] JSON decode error: {e}, response preview: {llm_response[:500]}")
-                        raise HTTPException(
-                            status_code=500,
-                            detail={
-                                "code": "invalid_llm_json",
-                                "message": "LLM returned invalid JSON for FULL response",
-                            },
-                        )
-                    except Exception as e:
-                        logger.error(f"[FULL RESPONSE ERROR] Unexpected error: {e}", exc_info=True)
-                        raise HTTPException(
-                            status_code=500,
-                            detail={
-                                "code": "invalid_llm_json",
-                                "message": "LLM returned invalid JSON for FULL response",
-                            },
-                        )
-                else:
-                    # Non-structured prompts fallback: map into ChatResponse
-                    return ChatResponse(
-                        main_text=llm_response,
-                        sources=[],
-                    )
-
-            # Generate the response
-            response = await full_response()
-            
-            # Submit to Supabase if requested
-            returned_thread_id = None
-            if chat_request.submit_query:
+            llm_response = await get_llm_response(
+                metrics_connection=metrics_conn,
+                prompt=prompt.value,
+                model=llm_configuration,
+                response_format=response_format,
+            )
+            if prompt.id == PromptType.STRUCTURED_JSON.value:
                 try:
-                    # Prepare response string for Supabase
-                    # Use Pydantic's model_dump_json() to properly serialize all nested models
-                    response_str = response.model_dump_json()
-                    
-                    result = await submit_to_supabase(
-                        question=chat_request.question,
-                        response=response_str,
-                        thread_id=chat_request.thread_id,
-                        user_id=user_id,
-                    )
-                    # Extract thread_id from Supabase response
-                    # Supabase returns the UUID as a string, convert to UUID object
-                    if result:
-                        returned_thread_id = uuid.UUID(result) if isinstance(result, str) else result
-                    
+                    parsed = json.loads(llm_response)
+                    main_text = parsed.get("main_text", "")
+                    main_text = re.sub(r'\s*\[[\d,\s]+\]', '', main_text).strip()
+                    source_numbers = parsed.get("source_numbers", [])
+
+                    logger.info(f"[FULL RESPONSE] LLM returned {len(source_numbers)} source numbers: {source_numbers}")
+
+                    source_by_number = {src["number"]: src for src in source_list}
+
+                    sources_by_doc = {}
+                    for num in source_numbers:
+                        source = source_by_number.get(num)
+                        if source is None:
+                            logger.warning(
+                                f"[FULL RESPONSE] LLM referenced source number {num} but it doesn't exist. "
+                                f"Available numbers: {list(source_by_number.keys())[:10]}"
+                            )
+                            continue
+
+                        text_id = source["text_id"]
+                        if text_id not in sources_by_doc:
+                            sources_by_doc[text_id] = []
+                        sources_by_doc[text_id].append(source)
+
+                    sources = []
+                    slug_counts = {}
+
+                    for text_id, used_sources in sources_by_doc.items():
+                        original_doc = next((d for d in retrieved_docs if d.id == text_id), None)
+                        if not original_doc:
+                            logger.warning(f"[FULL RESPONSE] Could not find original document for text_id={text_id}")
+                            continue
+
+                        all_segments = original_doc.text if isinstance(original_doc.text, list) else [(original_doc.text, None)]
+                        used_texts = {s["text"] for s in used_sources}
+                        reconstructed_text_parts = []
+                        min_time = None
+                        max_time = None
+
+                        for segment in all_segments:
+                            if isinstance(segment, (list, tuple)) and len(segment) >= 1:
+                                text_content = segment[0]
+
+                                if len(segment) >= 2 and isinstance(segment[1], (list, tuple)) and len(segment[1]) >= 2:
+                                    time_start = segment[1][0]
+                                    time_end = segment[1][1]
+                                    if time_start:
+                                        if min_time is None or time_start < min_time:
+                                            min_time = time_start
+                                    if time_end:
+                                        if max_time is None or time_end > max_time:
+                                            max_time = time_end
+
+                                if text_content in used_texts:
+                                    reconstructed_text_parts.append(f"**{text_content}**")
+                                else:
+                                    reconstructed_text_parts.append(text_content)
+                            else:
+                                reconstructed_text_parts.append(str(segment))
+
+                        full_text_with_highlights = " ".join(reconstructed_text_parts)
+
+                        timestamp_range = None
+                        if min_time and max_time:
+                            timestamp_range = f"{min_time}-{max_time}"
+                        elif min_time:
+                            timestamp_range = min_time
+                        elif max_time:
+                            timestamp_range = max_time
+
+                        used_quotes = [
+                            {"number": s["number"], "text": s["text"], "timestamp": s["timestamp"]}
+                            for s in used_sources
+                        ]
+
+                        source_entry = {
+                            "slug": original_doc.sanity_data.slug,
+                            "text_id": text_id,
+                            "full_text": full_text_with_highlights,
+                            "used_quotes": used_quotes,
+                            "timestamp_range": timestamp_range,
+                            "score": original_doc.score,
+                        }
+                        sources.append(source_entry)
+
+                        slug = original_doc.sanity_data.slug
+                        slug_counts[slug] = slug_counts.get(slug, 0) + len(used_sources)
+                        logger.info(
+                            f"[FULL RESPONSE] Document text_id={text_id}, slug={slug}, "
+                            f"used_quotes={len(used_sources)}, full_text_length={len(full_text_with_highlights)} chars"
+                        )
+
+                    unique_slugs = len(slug_counts)
                     logger.info(
-                        f"Query submitted to Supabase successfully. "
-                        f"thread_id={returned_thread_id}, "
-                        f"was_new_thread={chat_request.thread_id is None}"
+                        f"[FULL RESPONSE] Returning {len(sources)} documents with {sum(slug_counts.values())} total quotes from {unique_slugs} unique transcript(s)"
+                    )
+                    for slug, count in slug_counts.items():
+                        logger.info(f"[FULL RESPONSE] Transcript '{slug}': {count} quote(s)")
+
+                    return ChatResponse(main_text=main_text, sources=sources)
+                except json.JSONDecodeError as e:
+                    logger.error(f"[FULL RESPONSE ERROR] JSON decode error: {e}, response preview: {llm_response[:500]}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail={"code": "invalid_llm_json", "message": "LLM returned invalid JSON for FULL response"},
                     )
                 except Exception as e:
-                    # Log error but don't fail the request - user still gets their response
-                    logger.error(
-                        f"Failed to submit query to Supabase: {e}. "
-                        f"Continuing with response. question='{chat_request.question[:50]}...'"
+                    logger.error(f"[FULL RESPONSE ERROR] Unexpected error: {e}", exc_info=True)
+                    raise HTTPException(
+                        status_code=500,
+                        detail={"code": "invalid_llm_json", "message": "LLM returned invalid JSON for FULL response"},
                     )
-            
-            # Add thread_id to response
-            response.thread_id = returned_thread_id
-            
-            return response
+            else:
+                return ChatResponse(main_text=llm_response, sources=[])
+
+        # Generate the response
+        response = await full_response()
+
+        # Submit to Supabase if requested
+        returned_thread_id = None
+        if chat_request.submit_query:
+            try:
+                response_str = response.model_dump_json()
+                result = await submit_to_supabase(
+                    question=chat_request.question,
+                    response=response_str,
+                    thread_id=chat_request.thread_id,
+                    user_id=user_id,
+                )
+                if result:
+                    returned_thread_id = uuid.UUID(result) if isinstance(result, str) else result
+                logger.info(
+                    f"Query submitted to Supabase successfully. "
+                    f"thread_id={returned_thread_id}, "
+                    f"was_new_thread={chat_request.thread_id is None}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to submit query to Supabase: {e}. "
+                    f"Continuing with response. question='{chat_request.question[:50]}...'"
+                )
+
+        # Add thread_id to response
+        response.thread_id = returned_thread_id
+        return response
     except asyncio.TimeoutError:
         # Decrement rate limit on timeout error
         if should_decrement_on_error:

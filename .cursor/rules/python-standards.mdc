@@ -1,0 +1,58 @@
+---
+description: Python coding standards for this repository
+globs: **/*.py
+alwaysApply: false
+---
+
+# Python Standards
+
+## Imports
+
+Order: stdlib → third-party → internal (`rag.*`). No wildcard imports.
+
+## Type annotations
+
+All public functions and methods must have full type annotations including return type.
+
+```python
+# ❌
+def get_embedding(text, config):
+    ...
+
+# ✅
+async def get_embedding(text: str, config: EmbeddingConfiguration) -> Embedding:
+    ...
+```
+
+## Exceptions
+
+Always raise from the typed hierarchy in `app/exceptions/`. Never raise bare `Exception`
+or `HTTPException` directly inside service functions.
+
+```python
+# ❌
+raise Exception("DB failed")
+
+# ✅
+raise DataBaseException("Retrieval failed: collection unreachable")
+```
+
+## Logging
+
+Use the module-level logger — never `print()`.
+
+```python
+logger = logging.getLogger(__name__)
+logger.info(f"[CONTEXT] key={value}")   # structured prefix + key=value pairs
+```
+
+## Async
+
+- Service functions that call external APIs must be `async`.
+- Use `asyncio.wait_for(..., timeout=settings.external_api_timeout)` — never hardcode timeouts.
+
+## Pydantic
+
+- Use `BaseModel` for all data transfer objects.
+- Prefer `model_dump()` / `model_dump_json()` over `.dict()` (deprecated).
+- Validators use `@field_validator` (Pydantic v2), not `@validator`.

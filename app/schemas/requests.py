@@ -36,7 +36,6 @@ class TypeOfRequest(str, Enum):
 
 class ChatRequest(BaseModel):
     question: str
-    type_of_request: TypeOfRequest
     name_spaces: list[str] | None = None
     prompt_type: PromptType = Field(
         default=PromptType.STRUCTURED_JSON,

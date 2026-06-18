@@ -33,6 +33,7 @@ class SourceItem(BaseModel):
     full_text: str  # Full text with bolded used quotes (using **text** for bold)
     used_quotes: list[UsedQuote]  # List of individual quotes that were used
     timestamp_range: Optional[str] = None  # Overall timestamp range for the full document
+    score: Optional[float] = None  # Cosine similarity score from vector retrieval
 
 
 class ChatResponse(BaseModel):
@@ -118,6 +119,7 @@ class ConfigInfoResponse(BaseModel):
     chunking_strategy: str = Field(..., description="Current chunking strategy configuration")
     database_backend: str = Field(..., description="Current database backend (mongo or pinecone)")
     environment: str = Field(..., description="Current environment (PRD, STG, TEST)")
+    llm_configuration: str = Field(..., description="Current LLM model configuration")
 
 
 class NamespaceDetail(BaseModel):

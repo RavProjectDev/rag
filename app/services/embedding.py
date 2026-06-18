@@ -19,7 +19,8 @@ from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 import cohere
 from openai import AsyncOpenAI
 
-from rag.app.core.config import get_settings, get_shared_settings, Environment
+from rag.app.core.config import get_settings
+from rag.app.schemas.data import Environment
 from rag.app.exceptions.embedding import *
 from rag.app.schemas.data import EmbeddingConfiguration, Embedding
 

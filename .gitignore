@@ -241,5 +241,6 @@ next-env.d.ts
 
 #json static files.
 *.json
+!.cursor/mcp.json
 
 dev_outputs/
