@@ -74,8 +74,6 @@ jobs:
           sync_secret "MONGODB_DB_NAME"          "${{ secrets.MONGODB_DB_NAME }}"
           sync_secret "PINECONE_API_KEY"         "${{ secrets.PINECONE_API_KEY }}"
           sync_secret "GEMINI_API_KEY"           "${{ secrets.GEMINI_API_KEY }}"
-          sync_secret "GOOGLE_CLOUD_PROJECT_ID"  "${{ secrets.GOOGLE_CLOUD_PROJECT_ID }}"
-          sync_secret "VERTEX_REGION"            "${{ secrets.VERTEX_REGION }}"
 
       - name: Deploy Webhook to Cloud Run
         run: |
@@ -95,9 +93,7 @@ jobs:
             --set-secrets="MONGODB_URI=MONGODB_URI:latest" \
             --set-secrets="MONGODB_DB_NAME=MONGODB_DB_NAME:latest" \
             --set-secrets="PINECONE_API_KEY=PINECONE_API_KEY:latest" \
-            --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
-            --set-secrets="GOOGLE_CLOUD_PROJECT_ID=GOOGLE_CLOUD_PROJECT_ID:latest" \
-            --set-secrets="VERTEX_REGION=VERTEX_REGION:latest"
+            --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest"
 
       - name: Show service URL
         run: |
